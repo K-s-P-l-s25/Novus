@@ -1,0 +1,116 @@
+# Throwaway M0 spike runner (S1, S2, S6) on real Windows and on Android (NDK build + emulator).
+# Lives only on the spike/m0-ci branch.
+name: m0-spikes
+on:
+  push:
+    branches: [spike/m0-ci]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Environment
+        shell: pwsh
+        run: |
+          rustc -vV
+          Get-Command perl | Format-List Source
+          (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue).pv
+      - name: S2 SQLCipher + FTS5 trigram (x86_64-pc-windows-msvc)
+        shell: pwsh
+        working-directory: spikes/s2-sqlcipher
+        run: cargo run --release
+      - name: S6 Argon2id timing (Windows runner CPU)
+        shell: pwsh
+        working-directory: spikes/s6-argon2
+        run: cargo run --release -- 7
+      - name: S1 build
+        shell: pwsh
+        working-directory: spikes/s1-hello
+        run: |
+          npm ci
+          npx tauri build --no-bundle
+      - name: S1 invoke round-trip in WebView2
+        shell: pwsh
+        working-directory: spikes/s1-hello
+        run: |
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
+          $p = Start-Process -FilePath "src-tauri\target\release\kaisen-spike-s1.exe" -PassThru
+          node ..\ci\cdp_ping.mjs 9222
+          $code = $LASTEXITCODE
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          exit $code
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: "aarch64-linux-android,x86_64-linux-android" }
+      - name: NDK environment
+        run: |
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
+          TC="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          echo "$TC" >> "$GITHUB_PATH"
+          {
+            echo "CC_aarch64_linux_android=$TC/aarch64-linux-android26-clang"
+            echo "AR_aarch64_linux_android=$TC/llvm-ar"
+            echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$TC/aarch64-linux-android26-clang"
+            echo "CC_x86_64_linux_android=$TC/x86_64-linux-android26-clang"
+            echo "AR_x86_64_linux_android=$TC/llvm-ar"
+            echo "CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$TC/x86_64-linux-android26-clang"
+          } >> "$GITHUB_ENV"
+          ls "$ANDROID_NDK_LATEST_HOME" | head; cat "$ANDROID_NDK_LATEST_HOME/source.properties"
+      - name: S2 build for Android arm64 + x86_64 (SQLCipher + vendored OpenSSL with NDK clang)
+        working-directory: spikes/s2-sqlcipher
+        run: |
+          cargo build --release --target aarch64-linux-android
+          cargo build --release --target x86_64-linux-android
+          file target/aarch64-linux-android/release/spike-s2-sqlcipher target/x86_64-linux-android/release/spike-s2-sqlcipher
+          cp target/aarch64-linux-android/release/spike-s2-sqlcipher "$GITHUB_WORKSPACE/s2-aarch64"
+          cp target/x86_64-linux-android/release/spike-s2-sqlcipher "$GITHUB_WORKSPACE/s2-x86_64"
+      - name: S6 build for Android x86_64 (emulator)
+        working-directory: spikes/s6-argon2
+        run: |
+          cargo build --release --target x86_64-linux-android
+          cp target/x86_64-linux-android/release/spike-s6-argon2 "$GITHUB_WORKSPACE/s6-x86_64"
+      - name: S1 Android init + debug APK (arm64 + x86_64)
+        working-directory: spikes/s1-hello
+        run: |
+          npm ci
+          npx tauri android init --ci
+          npx tauri android build --debug --apk --target aarch64 --target x86_64
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
+          echo "APK: $APK"; ls -la "$APK"
+          cp "$APK" "$GITHUB_WORKSPACE/s1.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-spike-binaries
+          path: |
+            s1.apk
+            s2-aarch64
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run S1, S2, S6 on Android emulator (API 34, x86_64)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash spikes/ci/android-emulator.sh
