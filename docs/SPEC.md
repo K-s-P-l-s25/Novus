@@ -1,15 +1,15 @@
-# ARU — Master Document · Personal Edition
+# KAISEN — Master Document · Personal Edition
 
 **Architecture & Technical Design · Feature Technical Principles · Prototype Build Pack**
 
 |  |  |
 |---|---|
-| **Owner** | Property of Alex Reid & ARU Ltd — **Not for distribution** |
+| **Owner** | Property of Alex Reid & KAISEN Ltd — **Not for distribution** |
 | **Edition** | Personal Edition v2.0 (single user, no commercial rollout) |
 | **Date** | 2 October 2026 |
 | **Targets** | Windows 10/11 (x64) and Android (arm64, API 26+) |
 | **Stack** | Supabase · Tauri v2 + Vite · Tailwind CSS · Rust (primary) · TypeScript (secondary) |
-| **Source documents** | ARU Master Document v1.0 (Parts I and III), *Features (Draft)* PDF |
+| **Source documents** | KAISEN Master Document v1.0 (Parts I and III), *Features (Draft)* PDF |
 
 ---
 
@@ -25,7 +25,7 @@ This file is written to be read by both a human and a coding agent. Every schema
 ### Kickoff prompt (paste as the first message)
 
 ```text
-You are building ARU, a personal, offline-first, end-to-end-encrypted note/quest app
+You are building KAISEN, a personal, offline-first, end-to-end-encrypted note/quest app
 for Windows and Android using Tauri v2 + Vite + React + Tailwind (TypeScript frontend),
 Rust backend, and Supabase as the only cloud service.
 
@@ -165,7 +165,7 @@ report the result in docs/SPIKES.md (pass/fail, evidence, decision), and stop fo
 │        ▼                                                            │   │        ▼                                            │
 │  Rust core: services · repo · crypto · HLC · merge · FTS · export   │   │  Rust core: identical crate                         │
 │        ▼                                                            │   │        ▼                                            │
-│  SQLCipher DB (aru.db, AES-256)  +  encrypted attachment files      │   │  SQLCipher DB + encrypted attachment files          │
+│  SQLCipher DB (kaisen.db, AES-256)  +  encrypted attachment files   │   │  SQLCipher DB + encrypted attachment files          │
 └───────────────┬─────────────────────────────────────────────────────┘   └──────────────────┬──────────────────────────────────┘
                 │  HTTPS (ciphertext only)                                                    │
                 ▼                                                                             ▼
@@ -201,7 +201,7 @@ report the result in docs/SPIKES.md (pass/fail, evidence, decision), and stop fo
 ```text
 UI event → invoke("quest_complete") → Rust command (validate) → Service (one SQLite transaction)
    → repo.write(): row update + outbox entry + search reindex + domain events
-   → commit → emit "aru://changed" → TanStack Query invalidates → UI re-renders
+   → commit → emit "kaisen://changed" → TanStack Query invalidates → UI re-renders
    → (background) sync loop: outbox → encrypt → supabase push → pull → decrypt → merge
 ```
 
@@ -281,7 +281,7 @@ UI event → invoke("quest_complete") → Rust command (validate) → Service (o
 ## 3. Repository layout
 
 ```text
-aru/
+kaisen/
 ├─ CLAUDE.md                      # agent rules (root)
 ├─ docs/
 │  ├─ SPEC.md                     # this document
@@ -462,11 +462,11 @@ DEK (random 256-bit, generated once on first device)
    └─ wrapped by KEK_r → user_keys.wrapped_dek_recovery  (stored in Supabase; useless without recovery key)
 
 DEK ──HKDF-SHA256──► sub-keys (domain-separated)
-   ├─ "aru/db/v1"     → SQLCipher raw key (local database)
-   ├─ "aru/sync/v1"   → encrypts every sync_records payload
-   ├─ "aru/blob/v1"   → encrypts attachment files (local + Storage)
-   ├─ "aru/backup/v1" → encrypts backup archives
-   └─ "aru/kv/v1"     → encrypts the stored Supabase session
+   ├─ "kaisen/db/v1"     → SQLCipher raw key (local database)
+   ├─ "kaisen/sync/v1"   → encrypts every sync_records payload
+   ├─ "kaisen/blob/v1"   → encrypts attachment files (local + Storage)
+   ├─ "kaisen/backup/v1" → encrypts backup archives
+   └─ "kaisen/kv/v1"     → encrypts the stored Supabase session
 
 Vault key (random 256-bit per protected vault)
    └─ wrapped by Argon2id(vault password) → vaults.wrapped_key (synced inside the vault record)
@@ -494,7 +494,7 @@ Vault key (random 256-bit per protected vault)
 Every sync payload is sealed with **AAD** (additional authenticated data):
 
 ```text
-AAD = "aru|" + entity + "|" + record_id + "|" + hlc + "|" + payload_v
+AAD = "kaisen|" + entity + "|" + record_id + "|" + hlc + "|" + payload_v
 ```
 
 A malicious or buggy server cannot move one record's ciphertext onto another record, nor attach an old payload to a newer clock, without authentication failing. Replaying an *older whole record* is neutralised by the last-write-wins clock check (§7.4).
@@ -691,7 +691,7 @@ Lists you can reorder (vaults, files, Board columns and cards, quests, checklist
 ### 6.8 Migrations 🔒
 
 - Forward-only numbered SQL files in `src-tauri/migrations/`, embedded with `include_str!`, applied in a transaction at startup, tracked by `meta.schema_version`.
-- **Before applying any migration**, copy the DB file to `aru.db.bak-<oldversion>` (keep the last 2).
+- **Before applying any migration**, copy the DB file to `kaisen.db.bak-<oldversion>` (keep the last 2).
 - A new app version must refuse to open a DB with a *higher* schema version than it knows.
 - Schema and sync payload versions are separate (`payload_v`, §7.9).
 
@@ -799,7 +799,7 @@ apply(remote):
 
 ### 7.7 Attachments (images, files)
 
-- Metadata row `attachment` syncs like any record. The blob is encrypted with the `aru/blob/v1` sub-key (`nonce ‖ ciphertext`) and stored locally in `att/<id>`.
+- Metadata row `attachment` syncs like any record. The blob is encrypted with the `kaisen/blob/v1` sub-key (`nonce ‖ ciphertext`) and stored locally in `att/<id>`.
 - Upload to Storage path `{user_id}/{attachment_id}` (immutable; never overwritten).
 - Local `attachment_state(id, local_path, uploaded, downloaded)` drives two queues. Downloads are **lazy** (on first view) with an optional "download all on Wi-Fi" setting.
 - Size cap per file (default 25 MB) to protect free-tier storage and mobile data.
@@ -890,8 +890,8 @@ Default: **Supabase Storage public bucket `releases`** (keeps you inside "just S
 
 ```text
 releases/latest.json                           ← updater manifest (public)
-releases/windows/aru_<ver>_x64-setup.exe  + .sig
-releases/android/aru_<ver>_arm64.apk
+releases/windows/kaisen_<ver>_x64-setup.exe  + .sig
+releases/android/kaisen_<ver>_arm64.apk
 ```
 
 Alternative: a separate **public** GitHub repo containing release binaries only (no source). Convenient for GitHub-native tools; choose whichever you prefer. Binaries contain no secrets (the publishable key is public by design).
@@ -908,9 +908,9 @@ Alternative: a separate **public** GitHub repo containing release binaries only 
   "notes": "Fixes board drag on touch; adds timeline filters.",
   "pub_date": "2026-10-02T12:00:00Z",
   "platforms": {
-    "windows-x86_64": { "signature": "<contents of .sig>", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/windows/aru_0.4.2_x64-setup.exe" }
+    "windows-x86_64": { "signature": "<contents of .sig>", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/windows/kaisen_0.4.2_x64-setup.exe" }
   },
-  "android": { "version": "0.4.2", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/android/aru_0.4.2_arm64.apk", "sha256": "<hex>" },
+  "android": { "version": "0.4.2", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/android/kaisen_0.4.2_arm64.apk", "sha256": "<hex>" },
   "min_payload_v": 1
 }
 ```
@@ -975,7 +975,7 @@ Alternative with no CI: `scripts/release.mjs` builds locally on your Windows mac
 | Biometric unlock | ❌ (use Windows Hello via ★ S02 research) | ✅ | `biometric` mobile-only |
 | File dialogs | ✅ | ✅ (system picker) | `dialog` |
 | Notifications | ✅ | ✅ (verify scheduling support) | `notification` |
-| Share into app ("Share to ARU") | ❌ | ✅ via Android intent | Custom Kotlin plugin (★ S05) |
+| Share into app ("Share to KAISEN") | ❌ | ✅ via Android intent | Custom Kotlin plugin (★ S05) |
 | Secure screen (block screenshots) | ❌ | ✅ via `FLAG_SECURE` | Custom Kotlin (★ S04) |
 | Window state (size, position) | ✅ | n/a | Desktop capability file |
 
@@ -1074,7 +1074,7 @@ Every feature section follows the same shape so the agent and you can scan quick
 
 ### 14.3 Events and cache invalidation
 
-After every commit Rust emits `aru://changed` with the set of touched entities. `src/lib/events.ts` maps entities to TanStack Query keys:
+After every commit Rust emits `kaisen://changed` with the set of touched entities. `src/lib/events.ts` maps entities to TanStack Query keys:
 
 | Entity touched | Query keys invalidated |
 |---|---|
@@ -1239,7 +1239,7 @@ Quests (assignment chip and header), Craft Room (save as template), Search (inde
 "A rich text editor with every formatting feature under the sun": headings, text colours, **highlights with custom colours**, **comments**, **backlinks**, quest tracking, **table of contents**, **word count**, **file uploads/embeds**, exports. Formatting controls appear **as a bottom bar or floating on selection** (user's choice), with document settings in a **collapsible right sidebar**.
 
 ### 18.2 Why TipTap
-ProseMirror-based, schema-driven, stores as plain JSON, extensible for every ARU-specific feature, works in Android WebView, has React bindings. Document JSON is stored in `note_content.doc`.
+ProseMirror-based, schema-driven, stores as plain JSON, extensible for every KAISEN-specific feature, works in Android WebView, has React bindings. Document JSON is stored in `note_content.doc`.
 
 ### 18.3 Formatting inventory ◆
 
@@ -1351,7 +1351,7 @@ tldraw is the primary candidate (infinite canvas, shapes, arrows with bindings, 
 ### 19.4 Standard features ◆
 Shapes (rectangle, ellipse, diamond, sticky/text node, arrow with labels, freehand), connectors that stay attached when nodes move, images (from picker, paste, drop) stored as attachments, grouping, alignment, colours from theme tokens, zoom to fit, minimap, undo/redo, export PNG/SVG.
 
-Images use an **asset store adapter**: when the engine asks to store an asset, Rust encrypts it into `att/<id>`, writes an `attachment` row, and returns an `aru-att://<id>` reference that the adapter resolves to a Blob URL on render.
+Images use an **asset store adapter**: when the engine asks to store an asset, Rust encrypts it into `att/<id>`, writes an `attachment` row, and returns an `kaisen-att://<id>` reference that the adapter resolves to a Blob URL on render.
 
 ### 19.5 Advanced mode ◆
 
@@ -1416,7 +1416,7 @@ codex_snippets(id, file_id, name, language, code, sort_key, content_enc, + commo
 ### 20.3 Editor (CodeMirror 6)
 - Line numbers, active-line highlight, bracket matching and auto-close, code folding, indent guides, soft wrap toggle, tab size, find/replace (regex), multiple cursors on desktop.
 - Languages loaded **on demand** (JavaScript/TypeScript, Python, Rust, SQL, HTML, CSS, JSON, Markdown, YAML, Shell, C/C++, Java, Kotlin, Go, PHP, C#). Language chosen by dropdown; guessed from snippet name extension.
-- Theme generated from ARU tokens (§29) so the editor matches every theme.
+- Theme generated from KAISEN tokens (§29) so the editor matches every theme.
 - Copy button, "Download as file" (Windows save dialog / Android share), duplicate snippet, reorder tabs (drag).
 
 ### 20.4 Search ◆
@@ -1908,40 +1908,40 @@ All colours, radii and shadows come from **CSS custom properties** on `:root` / 
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg: var(--aru-bg);
-  --color-surface: var(--aru-surface);
-  --color-elevated: var(--aru-elevated);
-  --color-accent: var(--aru-accent);
-  --color-accent-fg: var(--aru-accent-fg);
-  --color-text: var(--aru-text);
-  --color-muted: var(--aru-text-muted);
-  --color-border: var(--aru-border);
-  --color-gold: var(--aru-gold);
-  --color-danger: var(--aru-danger);
-  --color-success: var(--aru-success);
-  --radius-card: var(--aru-radius);
+  --color-bg: var(--kaisen-bg);
+  --color-surface: var(--kaisen-surface);
+  --color-elevated: var(--kaisen-elevated);
+  --color-accent: var(--kaisen-accent);
+  --color-accent-fg: var(--kaisen-accent-fg);
+  --color-text: var(--kaisen-text);
+  --color-muted: var(--kaisen-text-muted);
+  --color-border: var(--kaisen-border);
+  --color-gold: var(--kaisen-gold);
+  --color-danger: var(--kaisen-danger);
+  --color-success: var(--kaisen-success);
+  --radius-card: var(--kaisen-radius);
 }
 
 :root, [data-theme="midnight"] {
-  --aru-bg: #0f1117;  --aru-surface: #171a23;  --aru-elevated: #1f2330;
-  --aru-accent: #6c8cff; --aru-accent-fg: #0b0d14;
-  --aru-text: #e6e8ef; --aru-text-muted: #9aa1b5; --aru-border: #2a2f40;
-  --aru-gold: #f5b83d; --aru-danger: #ef5b5b; --aru-success: #38c172; --aru-radius: 14px;
+  --kaisen-bg: #0f1117;  --kaisen-surface: #171a23;  --kaisen-elevated: #1f2330;
+  --kaisen-accent: #6c8cff; --kaisen-accent-fg: #0b0d14;
+  --kaisen-text: #e6e8ef; --kaisen-text-muted: #9aa1b5; --kaisen-border: #2a2f40;
+  --kaisen-gold: #f5b83d; --kaisen-danger: #ef5b5b; --kaisen-success: #38c172; --kaisen-radius: 14px;
 }
-[data-theme="dawn"] { --aru-bg:#fbf8f3; --aru-surface:#ffffff; --aru-elevated:#f3eee6; --aru-accent:#d9822b; --aru-accent-fg:#ffffff; --aru-text:#241f19; --aru-text-muted:#6f665a; --aru-border:#e4dccf; }
+[data-theme="dawn"] { --kaisen-bg:#fbf8f3; --kaisen-surface:#ffffff; --kaisen-elevated:#f3eee6; --kaisen-accent:#d9822b; --kaisen-accent-fg:#ffffff; --kaisen-text:#241f19; --kaisen-text-muted:#6f665a; --kaisen-border:#e4dccf; }
 ```
 
 ### 29.3 Tokens
 
 | Token | Controls | User-editable |
 |---|---|---|
-| `--aru-bg`, `--aru-surface`, `--aru-elevated` | Window, cards/panels, modals/menus | Yes |
-| `--aru-accent`, `--aru-accent-fg` | Primary actions and focus rings, text on accent | Yes |
-| `--aru-text`, `--aru-text-muted` | Body and secondary text | Yes |
-| `--aru-border` | Dividers, inputs | Yes |
-| `--aru-gold` | Gold currency colour | Yes (default fixed gold) |
-| `--aru-danger`, `--aru-success` | Destructive and success states | Preset only (semantic) |
-| `--aru-radius` | Corner roundness (Sharp / Soft / Round) | Yes |
+| `--kaisen-bg`, `--kaisen-surface`, `--kaisen-elevated` | Window, cards/panels, modals/menus | Yes |
+| `--kaisen-accent`, `--kaisen-accent-fg` | Primary actions and focus rings, text on accent | Yes |
+| `--kaisen-text`, `--kaisen-text-muted` | Body and secondary text | Yes |
+| `--kaisen-border` | Dividers, inputs | Yes |
+| `--kaisen-gold` | Gold currency colour | Yes (default fixed gold) |
+| `--kaisen-danger`, `--kaisen-success` | Destructive and success states | Preset only (semantic) |
+| `--kaisen-radius` | Corner roundness (Sharp / Soft / Round) | Yes |
 | Font family, base size, line height, density | Typography and spacing scale | Yes |
 
 ### 29.4 Presets and custom themes
@@ -1954,7 +1954,7 @@ Ship at least: **Midnight** (default dark), **Dawn** (light), **Forest**, **Void
 | CodeMirror | Theme extension generated from tokens (background, gutters, selection, syntax palette derived per light/dark) |
 | Canvas | Default stroke/fill palette from tokens; engine theme set to light/dark |
 | Charts | Series colours from a token-derived palette |
-| Android system bars | Match `--aru-bg` (set meta `theme-color`; a native bridge may be needed for navigation-bar colour — verify in spike) |
+| Android system bars | Match `--kaisen-bg` (set meta `theme-color`; a native bridge may be needed for navigation-bar colour — verify in spike) |
 
 ### 29.6 Suggestions ★
 > ★ **S32 Contrast checker** — theme editor warns when text/background pairs fall below 4.5:1 and offers an auto-fix.
@@ -1981,10 +1981,10 @@ PDF note ⚠: Windows can print-to-PDF from the WebView. Android PDF generation 
 Manual backup is core because it is your last line of defence; scheduling is the suggestion.
 
 ```text
-file: aru-YYYYMMDD-HHMM.aruback   (single file)
+file: kaisen-YYYYMMDD-HHMM.kaisenback   (single file)
  ├─ header (plaintext JSON): format version, created_at, app version, schema version,
  │                           kdf params + salt + wrapped_dek_pass  (so the passphrase alone restores it)
- └─ body: sealed with HKDF("aru/backup/v1") :
+ └─ body: sealed with HKDF("kaisen/backup/v1") :
           SQLite online-backup snapshot (consistent) + encrypted attachment files
 ```
 
@@ -2140,7 +2140,7 @@ Settings/Theme: after the shell, before any polished UI.   Updates/Release: earl
 | S02 | Convenience unlock (biometrics on Android, OS credential store on Windows) | 4.5 | M | High | Phase 2 |
 | S03 | Panic lock shortcut | 4.5 | S | Medium | Prototype |
 | S04 | Android secure screen (block screenshots) for protected vaults | 11.1 | M | Medium | Later |
-| S05 | Android "Share to ARU" intent (capture from other apps) | 11.1 | M | High | Phase 2 |
+| S05 | Android "Share to KAISEN" intent (capture from other apps) | 11.1 | M | High | Phase 2 |
 | S06 | Conflict Inbox screen | 7.4 | S | Medium | Prototype (basic) |
 | S07 | Sync diagnostics screen | 27.3 | S | High | Prototype |
 | S08 | UI-only hot update (no reinstall) | 10.4 | M | Medium | After stable |
@@ -2302,7 +2302,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 ### A.1 `src-tauri/migrations/0001_core.sql`
 
 ```sql
--- ARU local schema v1 (SQLCipher). Forward-only.
+-- KAISEN local schema v1 (SQLCipher). Forward-only.
 
 -- ───────── local-only (never synced) ─────────
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -2341,7 +2341,7 @@ CREATE TABLE view_state (
   last_opened INTEGER, state_json TEXT,       -- scroll, cursor, canvas viewport (per device)
   PRIMARY KEY (entity, record_id)
 );
-CREATE TABLE secure_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);   -- sealed with HKDF "aru/kv/v1"
+CREATE TABLE secure_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);   -- sealed with HKDF "kaisen/kv/v1"
 
 -- ───────── structure (synced) ─────────
 CREATE TABLE vaults (
@@ -2585,7 +2585,7 @@ ALTER TABLE shop_items ADD COLUMN available_until INTEGER;
 | `setting` | `settings` | LWW row |
 | `device` | `devices` | LWW row |
 
-**Payload** = the row serialised as a JSON object with **sorted keys**, containing every column of the table (including `hlc`, `created_at`, `updated_at`, `deleted_at`). It is sealed with the `aru/sync/v1` sub-key and the AAD from §5.4, then base64-encoded. Each Rust entity module implements one trait so the sync code is generic:
+**Payload** = the row serialised as a JSON object with **sorted keys**, containing every column of the table (including `hlc`, `created_at`, `updated_at`, `deleted_at`). It is sealed with the `kaisen/sync/v1` sub-key and the AAD from §5.4, then base64-encoded. Each Rust entity module implements one trait so the sync code is generic:
 
 ```rust
 pub trait Synced {
@@ -2783,12 +2783,12 @@ const { data, error } = await supabase
 
 ```toml
 [package]
-name = "aru"
+name = "kaisen"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "aru_lib"
+name = "kaisen_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -2844,7 +2844,7 @@ proptest = "*"
 
 ```json
 {
-  "name": "aru",
+  "name": "kaisen",
   "private": true,
   "type": "module",
   "scripts": {
@@ -2882,13 +2882,13 @@ proptest = "*"
 
 ```json
 {
-  "productName": "ARU",
+  "productName": "KAISEN",
   "version": "0.1.0",
-  "identifier": "dev.alexreid.aru",
+  "identifier": "dev.alexreid.kaisen",
   "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420",
              "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
   "app": {
-    "windows": [{ "label": "main", "title": "ARU", "width": 1280, "height": 800, "minWidth": 960, "minHeight": 600 }],
+    "windows": [{ "label": "main", "title": "KAISEN", "width": 1280, "height": 800, "minWidth": 960, "minHeight": 600 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: asset: http://asset.localhost; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://<PROJECT_REF>.supabase.co wss://<PROJECT_REF>.supabase.co; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     }

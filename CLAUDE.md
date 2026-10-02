@@ -1,9 +1,9 @@
-# CLAUDE.md — ARU (personal edition)
+# CLAUDE.md — KAISEN (personal edition)
 
-Property of Alex Reid & ARU Ltd. Not for distribution.
+Property of Alex Reid & KAISEN Ltd. Not for distribution.
 
 ## What this is
-ARU is a **personal, offline-first, end-to-end-encrypted** note / canvas / code / board / quest app for **Windows and Android**, single user, no commercial features. The full specification is **`docs/SPEC.md`**. Read the relevant sections before coding. If code and spec disagree, stop and ask; do not silently diverge.
+KAISEN is a **personal, offline-first, end-to-end-encrypted** note / canvas / code / board / quest app for **Windows and Android**, single user, no commercial features. The full specification is **`docs/SPEC.md`**. Read the relevant sections before coding. If code and spec disagree, stop and ask; do not silently diverge.
 
 ## Stack (fixed)
 - Tauri v2 + Vite + React + TypeScript (strict) + Tailwind CSS
