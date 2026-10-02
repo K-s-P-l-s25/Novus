@@ -34,13 +34,17 @@ jobs:
         working-directory: spikes/s1-hello
         run: |
           npm ci
-          npx tauri build --no-bundle
+          # CI only: open the WebView2 DevTools port so the round-trip can be driven remotely.
+          '{"app":{"windows":[{"label":"main","title":"KAISEN spike S1","width":800,"height":600,"additionalBrowserArgs":"--remote-debugging-port=9222 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"}]}}' | Set-Content -Encoding utf8NoBOM ci-devtools.json
+          npx tauri build --no-bundle --config ci-devtools.json
       - name: S1 invoke round-trip in WebView2
         shell: pwsh
         working-directory: spikes/s1-hello
         run: |
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
           $p = Start-Process -FilePath "src-tauri\target\release\kaisen-spike-s1.exe" -PassThru
+          Start-Sleep -Seconds 10
+          "app running: $(-not $p.HasExited)  exit code: $($p.ExitCode)"
+          try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9222/json).Content } catch { "devtools /json: $_" }
           node ..\ci\cdp_ping.mjs 9222
           $code = $LASTEXITCODE
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
