@@ -1,0 +1,15 @@
+[package]
+name = "spike-s6-argon2"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+argon2 = "=0.6.0"
+
+[profile.release]
+opt-level = 3
+codegen-units = 1
+lto = true
+
+[workspace]
