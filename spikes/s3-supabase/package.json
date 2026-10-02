@@ -1,0 +1,8 @@
+{
+  "name": "kaisen-spike-s3",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": { "probe": "node probe.mjs" },
+  "dependencies": { "@supabase/supabase-js": "2.117.2" }
+}
