@@ -1,0 +1,18 @@
+[package]
+name = "kaisen-spike-s1"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "kaisen_spike_s1_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.7.1", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.1", features = [] }
+serde = { version = "=1.0.229", features = ["derive"] }
+
+[workspace]
