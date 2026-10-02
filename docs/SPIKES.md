@@ -4,14 +4,16 @@ Results for SPEC §35 M0. Each spike that needed code has its own throwaway bran
 
 **Where these were run:** a Linux x86_64 cloud container (4 vCPU, no GPU). It has **no Windows machine, no Android device, no Android NDK** (the NDK download from Google is blocked by the network policy) **and no Supabase project**. So a spike's pass condition is only marked PASS when the evidence fully meets it. Otherwise it is PARTIAL or NOT RUN, with the exact steps left for you.
 
+**Second pass (2 Oct 2026): GitHub Actions.** To get real Windows and Android evidence without your devices, S1, S2 and S6 were also run in CI on the throwaway branch `spike/m0-ci` (workflow `m0-spikes`): a `windows-latest` runner (Windows, MSVC, WebView2 153), and an `ubuntu-latest` runner with Android NDK 29.0.14206865 plus an Android 14 (API 34) x86_64 emulator. Green run: https://github.com/K-s-P-l-s25/Novus/actions/runs/36998817562. An emulator is not your phone, so phone-only items are still marked as yours.
+
 | Spike | Status | Branch | Decision needed from you |
 |---|---|---|---|
-| S1 Tauri on Windows + Android | **PARTIAL**: invoke round-trip passes on Linux. Windows and phone not run. | `spike/s1-hello` | No. Run it on both devices. |
-| S2 SQLCipher + FTS5 trigram | **PARTIAL**: full pass on Linux x86_64. Windows cross-build compiles. Android not built (no NDK). | `spike/s2-sqlcipher` | No. Run it on Windows and build for Android. |
+| S1 Tauri on Windows + Android | **PASS on Windows and the Android emulator** (and Linux). Physical phone not run. | `spike/s1-hello`, `spike/m0-ci` | No. Optional: install the APK on your phone |
+| S2 SQLCipher + FTS5 trigram | **PASS on Windows (MSVC), Android emulator and Linux**; arm64 Android build compiles with the NDK. Not run on a physical arm64 phone. | `spike/s2-sqlcipher`, `spike/m0-ci` | No. Optional: run the arm64 binary on your phone |
 | S3 Supabase TOTP + `aal2` | **NOT RUN**: needs your project and Proton Authenticator. Probe script is ready. | `spike/s3-supabase-aal2` | No |
 | S4 Updates | **NOT RUN** (needs devices). Android mechanism **decided: Obtainium**. | none | Decided 2 Oct |
 | S5 Canvas (tldraw) | **FAIL (licence gate)**. **Decided: Canvas deferred.** | none | Decided 2 Oct |
-| S6 Argon2id speed | **PARTIAL**: desktop numbers taken. Phone binary built and runs under qemu, but no phone timing yet. | `spike/s6-argon2` | No. Run the phone binary. |
+| S6 Argon2id speed | **PARTIAL**: Windows, Linux and emulator numbers taken. **Phone timing still needed**; an emulator can't stand in for it. | `spike/s6-argon2` | **Yes**: run the phone binary (one `adb` command) |
 | S7 Misc feasibility | **PARTIAL**: notification scheduling checked in the plugin source. PDF and Back button need a device. | none | Windows reminders decided 2 Oct |
 
 Versions checked on 2 Oct 2026: `tauri` 2.12.1, `tauri-build` 2.7.1, `@tauri-apps/cli`/`api` 2.12.1, `rusqlite` 0.40.2 (SQLite 3.51.3, SQLCipher 4.14.0 community), `argon2` 0.6.0, `tauri-plugin-notification` 2.5.1, `tauri-plugin-updater` 2.13.1, `@supabase/supabase-js` 2.117.2, `tldraw` 5.5.1, React 19.3.0, Vite 8.3.2, TypeScript 7.0.2.
@@ -31,7 +33,20 @@ before: not run
 after:  PASS · echo="ST morf olleh" · platform=linux · round-trip 4.0 ms
 ```
 
-**Not done:** Windows (WebView2) and the phone. **Your steps** (from `spikes/s1-hello`, on the `spike/s1-hello` branch):
+**Evidence (CI, `spike/m0-ci`):** the CI drives the button through the WebView's DevTools protocol (`spikes/ci/cdp_ping.mjs`).
+
+```text
+Windows (windows-latest, WebView2 153, release build):
+  target url: http://tauri.localhost/
+  S1 result: PASS · echo="ST morf olleh" · platform=windows · round-trip 10.2 ms
+Android 14 emulator (API 34, x86_64, debug APK from `tauri android build --apk --target aarch64 --target x86_64`):
+  target url: http://tauri.localhost/
+  S1 result: PASS · echo="ST morf olleh" · platform=android · round-trip 21.0 ms
+```
+
+Findings: Tauri refuses to build an Android package at version `0.0.0` (it needs at least `0.0.1`). On Windows the DevTools port must be set through the window's `additionalBrowserArgs`, because the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable is ignored when Tauri passes its own arguments. Both matter for M1's CI and for debugging.
+
+**Not done:** a physical phone. The universal debug APK (arm64 + x86_64) is in the run's `android-spike-binaries` artifact (https://github.com/K-s-P-l-s25/Novus/actions/runs/36998817562), so you can sideload it without build tools and press the button. Or build it yourself (from `spikes/s1-hello`, on the `spike/s1-hello` branch):
 
 ```text
 npm ci
@@ -40,7 +55,7 @@ npm run tauri android init                # needs Android Studio, SDK, NDK, JDK 
 npm run tauri android dev                 # phone over USB debugging: expect "platform=android"
 ```
 
-**Decision:** none yet. If both devices show PASS, M1 starts from this layout.
+**Decision:** **pass** for M0 purposes: the Tauri v2 + Vite + React layout works on both target platforms. M1 starts from this layout. A run on your phone remains a nice-to-have confirmation.
 
 ---
 
@@ -68,16 +83,29 @@ RESULT           = PASS
 
 The first build took about 90 s, most of it compiling OpenSSL. A cross-build for `x86_64-pc-windows-gnu` (mingw) also **compiled and linked** (an 11 MB PE32+ exe). I did not run it, and the real Windows target is MSVC.
 
-**Not done:**
-- **Android arm64.** The NDK cannot be downloaded in this container, so I could not test the cross-compile of vendored OpenSSL with the NDK clang. This is the main risk §5.9 names, and it is still open.
-- **Windows MSVC.** Run `cargo run` in `spikes/s2-sqlcipher` on Windows. `openssl-src` needs **Perl** on Windows (Strawberry Perl); put that in `DEV_SETUP.md`.
-- **Android steps:** `rustup target add aarch64-linux-android`; set `ANDROID_NDK_HOME`; build with `cargo build --target aarch64-linux-android` using the NDK's `aarch64-linux-android26-clang` as `CC_aarch64_linux_android` and as the linker. Then `adb push` and run, or run it in the S1 app. If that fails, the fallbacks are a Linux CI runner and then SQLite3 Multiple Ciphers.
+**Evidence (CI, `spike/m0-ci`):**
+
+```text
+Windows (x86_64-pc-windows-msvc, Strawberry Perl, COMPILER=msvc-1951):
+  sqlite 3.51.3 · SQLCipher 4.14.0 community (openssl) · ENABLE_FTS5 = true
+  trigram 'getUs' -> rowid 1 · 'xyzq' -> 0 · marker in file = false · plain header = false
+  wrong key = rejected · no key = rejected · right key = 1 row · RESULT = PASS
+Android (NDK 29.0.14206865, clang-21, API 26 target):
+  aarch64-linux-android: ELF 64-bit pie, ARM aarch64, interpreter /system/bin/linker64  (built)
+  x86_64-linux-android on the API 34 emulator: same checks as above · RESULT = PASS
+```
+
+So vendored OpenSSL **does** cross-compile with the NDK. That was the main risk in §5.9, and it no longer needs the WSL2 or SQLite3 Multiple Ciphers fallbacks. On Windows the MSVC build of OpenSSL takes about 7 minutes from cold; a CI cache will matter.
+
+**Not done:** running the arm64 binary on a physical phone. It is `s2-aarch64` in the same CI artifact: `adb push s2-aarch64 /data/local/tmp/s2 && adb shell chmod 755 /data/local/tmp/s2 && adb shell /data/local/tmp/s2`.
+
+**DEV_SETUP notes for M1:** Windows needs Strawberry Perl on `PATH` ahead of Git's msys Perl. Android needs `CC_<target>`, `AR_<target>`, `CARGO_TARGET_<TARGET>_LINKER` and `ANDROID_NDK_ROOT` pointing at the NDK's clang (see `.github/workflows/m0-spikes.yml` on `spike/m0-ci`).
 
 **Findings to carry into M4:**
 1. When decryption fails, SQLCipher writes its own lines to stderr, for example `ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1`. They contain no content or keys, but they bypass `tracing`. M4 should set `PRAGMA cipher_log_level = NONE`, or route the output into our logger.
 2. The bundled build has `ENABLE_LOAD_EXTENSION` compiled in. rusqlite leaves extension loading off unless the `load_extension` feature is enabled, and we don't enable it. Keep it that way (security checklist §12).
 
-**Decision:** keep `bundled-sqlcipher-vendored-openssl` for now. Make the final call after the Android build.
+**Decision:** **keep `bundled-sqlcipher-vendored-openssl`**. It builds and passes on all three platforms, so no fallback is needed.
 
 ---
 
@@ -160,7 +188,14 @@ Paste the output into this section. The probe prints the TOTP secret once in you
 | 65536 | 2 | 1 | 119 | 103 / 131 |
 | 19456 | 2 | 1 | 18 | 18 / 25 |
 
-The arm64 binary was checked under qemu-user only to prove it runs. Emulated timings mean nothing.
+**More evidence (CI, `spike/m0-ci`):**
+
+| Where | m=65536 t=3 | m=32768 t=3 | m=65536 t=2 | m=19456 t=2 |
+|---|---|---|---|---|
+| Windows runner (x86_64), 7 runs | **96 ms** | 45 ms | 64 ms | 17 ms |
+| Android 14 emulator (x86_64 on a shared runner), 3 runs | **343 ms** | 160 ms | 260 ms | 100 ms |
+
+The emulator runs on the CI machine's x86 CPU, not phone hardware, so its numbers only show that the code runs on Android. The arm64 binary was checked under qemu-user only to prove it runs. Neither tells us about your phone.
 
 **Your steps (phone).** The branch has a static arm64 binary, `spikes/s6-argon2/bin/spike-s6-argon2-android-arm64` (musl, no NDK needed; sha256 `8d7a64aa…f759`):
 
