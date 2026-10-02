@@ -137,7 +137,7 @@ report the result in docs/SPIKES.md (pass/fail, evidence, decision), and stop fo
 | Q4 | **Template "visibility"** | With one user, I reinterpret *visibility* as **Shown / Hidden** in quick-create menus. | The business edition meant shared/private. |
 | Q5 | **Android floor** | API 26 (Android 8.0) minimum, arm64 devices. | Affects the Keystore and notification APIs. |
 | Q6 | **Windows ARM** | Not targeted. x64 only. | Easy to add later. |
-| Q7 | **Canvas licence** | ⚠ My v1.0 document called tldraw "MIT". I should correct that: current tldraw SDK versions use a custom licence and show a watermark without a licence key. A free non-commercial tier exists, but **verify at tldraw.dev before committing** (spike S5). | A licence surprise late in the build is expensive. Canvas is wrapped behind an interface so it can be swapped. |
+| Q7 | **Canvas licence** | **Resolved (M0 spike S5, 2 Oct 2026): Canvas is deferred.** tldraw needs a licence key in production; the free hobby licence keeps a watermark and phones home to tldraw.com, which conflicts with B2.1. You chose to leave Canvas out for now rather than approve a fallback engine (§19). | Revisit when Canvas comes back; the MIT fallbacks (Excalidraw, React Flow) are recorded in `docs/SPIKES.md`. |
 | Q8 | **Journey "Timeline"** | You asked for suggestions. I propose a Quest-Log vertical journey (§25.3) as ★ S14. | Choose the minimal list timeline or the richer journey map. |
 
 ## B4. Corrections to my earlier documents
@@ -244,7 +244,7 @@ UI event → invoke("quest_complete") → Rust command (validate) → Service (o
 | `@tanstack/react-query` | Cache and invalidation over `invoke()` | Required (it is in your original stack; it now caches local Rust queries, not network data) |
 | `zustand` | Small UI state (modals, sidebar, active vault) | Required |
 | `@tiptap/*` (react, pm, starter-kit, extensions) | Notes editor | Required |
-| `tldraw` (or fallback, see Q7) | Canvas | Required, **licence gate at M0** |
+| ~~`tldraw`~~ | Canvas | **Deferred** with the Canvas feature (Q7, §19). Do not add any canvas engine without approval |
 | `@codemirror/*` | Codex editor | Required |
 | `@dnd-kit/*` | Drag and drop (Board, lists, builders) | Required |
 | `clsx`, `tailwind-merge` | Class composition | Required |
@@ -891,10 +891,9 @@ Default: **Supabase Storage public bucket `releases`** (keeps you inside "just S
 ```text
 releases/latest.json                           ← updater manifest (public)
 releases/windows/kaisen_<ver>_x64-setup.exe  + .sig
-releases/android/kaisen_<ver>_arm64.apk
 ```
 
-Alternative: a separate **public** GitHub repo containing release binaries only (no source). Convenient for GitHub-native tools; choose whichever you prefer. Binaries contain no secrets (the publishable key is public by design).
+**Android APKs are the exception (decision after spike S4):** they are published as **GitHub Releases on a separate public, binaries-only repo** (e.g. `kaisen-releases`, no source code), because Obtainium (§10.4) tracks GitHub Releases natively. Binaries contain no secrets (the publishable key is public by design). `latest.json` still carries an `android` block so the app can show an "Update available" banner.
 
 ### 10.3 Windows
 
@@ -910,29 +909,36 @@ Alternative: a separate **public** GitHub repo containing release binaries only 
   "platforms": {
     "windows-x86_64": { "signature": "<contents of .sig>", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/windows/kaisen_0.4.2_x64-setup.exe" }
   },
-  "android": { "version": "0.4.2", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/android/kaisen_0.4.2_arm64.apk", "sha256": "<hex>" },
+  "android": { "version": "0.4.2", "url": "https://github.com/<you>/kaisen-releases/releases/tag/v0.4.2", "sha256": "<hex>" },
   "min_payload_v": 1
 }
 ```
 
-(The `android` block is **our own extension** read by our code, not by the Tauri updater.)
+(The `android` block is **our own extension** read by our code, not by the Tauri updater. On Android it only drives a non-blocking banner; the install itself is done by Obtainium.)
 
 - Personal-use signing: you do **not** need an EV code-signing certificate. Windows SmartScreen may show a one-time warning on first install; the updater's own signature check is what protects updates.
 - UX: silent check on launch and every 6 hours; non-blocking banner "Update 0.4.2 ready — Restart"; install mode `passive`.
 
-### 10.4 Android (decision deferred to spike S4)
+### 10.4 Android: Obtainium (decided after spike S4)
 
-Three viable mechanisms, in order of preference:
+**Decision:** full Android updates use **Obtainium**, a free, open-source (GPL-3.0) Android app that watches a release source and installs new versions. KAISEN ships **no installer code**. An in-app installer was rejected for now: the only off-the-shelf plugin (`tauri-plugin-android-update`) just opens a browser page and does its network calls in Rust, against rule 3. A custom Kotlin installer (~100–150 lines) remains possible later.
 
-| Option | How | Pros | Cons |
-|---|---|---|---|
-| **A. In-app APK update** | `UpdateService` reads `latest.json`, downloads the APK, verifies **SHA-256 and the APK signature** (same keystore), then hands it to Android's package installer. A community crate/plugin (e.g. `tauri-plugin-android-update`) or ~60 lines of Kotlin can do the install step. | Feels like OTA; one tap | Android shows its "install unknown apps" permission once; ⚠ plugin maturity must be checked |
-| **B. Obtainium** | Free open-source Android app that watches a release page and installs updates | Zero code | Works best with GitHub-style release pages (so favours the public-releases-repo option) |
-| **C. Frontend hot-update plugin** | `tauri-plugin-hot-update` swaps the web bundle with rollback protection | Instant UI fixes without reinstall | ⚠ New community plugin (0.1.x). Rust changes still need Option A or B. |
+**One-time setup on the phone (about 5 minutes):**
+1. Install Obtainium from **F-Droid** or its official GitHub releases (not a mirror site).
+2. In Obtainium: *Add app* → paste `https://github.com/<you>/kaisen-releases` → it detects the latest release and installs the APK. Android asks once to allow "install unknown apps" for Obtainium.
+3. Leave Obtainium's background update check on. From then on an update is: notification → tap → Android's install prompt → done. Local data is kept.
 
-**Recommendation:** ship Option **A** (or **B** if A's plugin fails the spike) for full updates. Treat **C** as ★ **S08** after the app is stable.
+**Why it is secure:**
+- **Android itself enforces the signing key.** An update only installs over the existing app if it is signed with the **same keystore**. A compromised GitHub account, release page or Obtainium can at worst offer an APK that Android refuses (or a fresh install that cannot read the existing app's data). The keystore is the secret that matters: it stays offline and in CI secrets only, backed up in two places.
+- Each release lists the APK's **SHA-256** (also in `latest.json`) for manual checking.
+- The releases repo holds binaries only, no source and no secrets. Use 2FA on the GitHub account and a fine-grained CI token limited to that one repo (`contents: write`).
+- Obtainium needs no account and sends nothing to any KAISEN service. It only reads the public GitHub releases page.
 
-Android requirements regardless of option:
+**In-app behaviour:** the app reads `latest.json` (as on Windows). If `android.version` is newer it shows a non-blocking banner "Update 0.4.2 available — open Obtainium". If a pulled record needs a newer `payload_v` (§7.9) the banner is persistent.
+
+**Option C** (`tauri-plugin-hot-update`, UI-only hot updates) stays ★ **S08** after the app is stable.
+
+Android release requirements:
 
 - **Always sign release APKs with the same keystore.** A different key means Android refuses the update and you must uninstall (losing local data until you re-sync). Back up the keystore and its password in two places.
 - Keep `applicationId` constant. Increase `versionCode` every release (derive from semver).
@@ -946,8 +952,9 @@ CI (.github/workflows/release.yml):
    gate:    skip unless package/tauri version > version in releases/latest.json
    windows: build NSIS + updater artifacts, sign with TAURI_SIGNING_PRIVATE_KEY
    android: build signed APK (keystore from secrets)
-   publish: upload artifacts to Supabase Storage `releases/`, then upload new latest.json LAST
-devices: check latest.json → show banner → install
+   publish: Windows artifacts → Supabase Storage `releases/`; APK → GitHub Release on `kaisen-releases`;
+            then upload new latest.json LAST
+devices: Windows: check latest.json → banner → install · Android: Obtainium notifies → tap → install
 ```
 
 Uploading `latest.json` **last** guarantees devices never see a manifest pointing at a file that is not there yet. Skeleton workflow: Appendix E.
@@ -958,7 +965,7 @@ Alternative with no CI: `scripts/release.mjs` builds locally on your Windows mac
 
 - Migrations run on first launch of the new version (§6.8) after an automatic DB backup.
 - A device that has not updated keeps working locally; if the other device writes a newer `payload_v`, sync pauses until it updates (§7.9).
-- ✅ **ACCEPTANCE** — Publish version N+1 with a new migration. Windows updates, relaunches, migrates and syncs. Android installs the APK, keeps local data (same keystore), migrates and syncs. Rolling back is not supported; fix forward.
+- ✅ **ACCEPTANCE** — Publish version N+1 with a new migration. Windows updates, relaunches, migrates and syncs. Android installs the APK through Obtainium, keeps local data (same keystore), migrates and syncs. Rolling back is not supported; fix forward.
 
 ---
 
@@ -974,7 +981,7 @@ Alternative with no CI: `scripts/release.mjs` builds locally on your Windows mac
 | Keyboard shortcuts in app | ✅ | Limited (hardware keyboards) | In-app handler |
 | Biometric unlock | ❌ (use Windows Hello via ★ S02 research) | ✅ | `biometric` mobile-only |
 | File dialogs | ✅ | ✅ (system picker) | `dialog` |
-| Notifications | ✅ | ✅ (verify scheduling support) | `notification` |
+| Notifications | ✅ immediate; scheduled reminders only while the app (or its tray) runs | ✅ scheduled (AlarmManager, survives reboot) | `notification` |
 | Share into app ("Share to KAISEN") | ❌ | ✅ via Android intent | Custom Kotlin plugin (★ S05) |
 | Secure screen (block screenshots) | ❌ | ✅ via `FLAG_SECURE` | Custom Kotlin (★ S04) |
 | Window state (size, position) | ✅ | n/a | Desktop capability file |
@@ -1210,7 +1217,7 @@ The shared index lets search, tags, quest links, templates and Trash treat every
 - **Desktop**: left rail → vault name + file list (grouped Pinned / Recent / All) → editor → collapsible right sidebar.
 - **Mobile**: file list screen → editor screen; right sidebar becomes a bottom sheet ("Document settings").
 - File list row: kind icon, title, tag chips, quest chip, updated time. Sort: updated, created, title, manual (drag).
-- **New file** sheet: Note, Canvas, Codex, Board, plus "From template…".
+- **New file** sheet: Note, Codex, Board, plus "From template…". (Canvas is deferred, §19.)
 - **Right sidebar** (shared frame; each kind contributes tabs): *Properties* (tags, icon, colour, vault, created/updated), *Outline* (Notes ToC), *Comments* (Notes), *Links* (backlinks and outgoing, assigned quests), *History* (★ S15), *Export*.
 
 ### 17.5 Tags
@@ -1333,6 +1340,8 @@ Very large documents (> 100k words): warn and offer split; paste of huge HTML: t
 ---
 
 ## 19. Canvas (standard and Advanced)
+
+> ⏸ **DEFERRED (decision after spike S5, 2 Oct 2026).** Canvas is out of scope until you re-enable it. Until then: no canvas engine dependency, no `canvas_*` commands, and Canvas is not offered in the New file sheet, the Craft Room (`canvas`/`canvas_component` targets) or exports. The schema keeps the `canvas` file kind, the `canvas_content` table and the `canvas_content` sync entity **reserved**, so re-enabling Canvas needs no migration and no `payload_v` bump. A `canvas_content` record received by sync is stored as-is and not rendered. The design below is kept for when Canvas returns.
 
 ### 19.1 Purpose ◆ SPEC
 Infinite mind map: draw shapes, connect written nodes into flows, arrange images as a mood board. **Advanced canvas** adds **variables, triggers and logic**, a **Start node**, **components** for reuse, and a **sequence view** on the side.
@@ -2015,7 +2024,9 @@ Not in your spec; useful for moving existing notes in. ★ **S28 Markdown/Obsidi
 Quest reminders and sync/update notices, local only (no push server).
 
 ### 32.2 Design
-- **Local notifications** via the Tauri notification plugin. Windows: toasts. Android: scheduled local notifications (⚠ verify scheduling APIs in the spike); request the `POST_NOTIFICATIONS` runtime permission on Android 13+. Avoid exact-alarm permission; a few minutes of imprecision is acceptable.
+- **Local notifications** via the Tauri notification plugin (spike S7).
+  - **Android:** scheduled by the plugin with `AlarmManager` (inexact without the exact-alarm permission, re-armed after reboot). Request the `POST_NOTIFICATIONS` runtime permission on Android 13+. Avoid exact-alarm permission; a few minutes of imprecision is acceptable.
+  - **Windows:** the plugin does **not** schedule on desktop (it shows immediately and ignores the schedule). Rust keeps the reminder set in memory and fires `show()` from a timer **while the app or its tray icon is running**. **Reminders do not fire while KAISEN is fully closed on Windows**; on next launch, missed reminders appear in the Gatehouse "missed" digest (§32.3).
 - A `reminders` pass runs after every sync and on every quest change: it **cancels and recreates** the scheduled set for active quests with a due time (offsets: at due, 15 min, 1 h, 1 day; per-quest and default in Settings), skipping quests completed or archived.
 - Quiet hours (default 22:00–07:00) delay non-urgent reminders.
 - 🔒 Notification text for quests in **protected vaults** (via assigned files) or marked private is generic ("A quest is due"), so nothing sensitive reaches the lock screen.
@@ -2191,7 +2202,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 |---|---|---|
 | **Prototype v0.1** | M0–M7 | Write notes on Windows and Android, offline, encrypted, 2FA-protected, synced, searchable |
 | **v0.2** | M8–M10 | Run the quest, gold, shop and Journey loop on both devices |
-| **v0.3** | M11–M14 | Board, Codex, Canvas, Craft Room, Gatehouse |
+| **v0.3** | M11, M12, M14 | Board, Codex, Craft Room, Gatehouse (M13 Canvas is deferred) |
 | **v1.0 (personal)** | M15–M17 | Themes, shortcuts, notifications, backups, OTA updates, hardening |
 
 ### M0 — Risk spikes (throwaway branches; results in `docs/SPIKES.md`)
@@ -2254,7 +2265,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 **Build**: snippets, CodeMirror with lazy languages, search integration, download/share.
 **Done when**: §20.9 passes.
 
-### M13 — Canvas
+### M13 — Canvas (⏸ deferred, see §19; skip in milestone order)
 **Build**: `CanvasEngine` wrapper, asset store adapter, autosave, Advanced mode shapes, variables panel, sequence view, component save/insert.
 **Done when**: §19.11 passes.
 
@@ -2271,7 +2282,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 **Done when**: §30.2 acceptance passes; a restore on a clean emulator reproduces the data.
 
 ### M17 — OTA, release pipeline, hardening
-**Build**: `UpdateService` (Windows updater, Android mechanism from S4), `latest.json` manifest tooling, CI workflow (Appendix E) or local release script, keystore and signing-key backups, security checklist (§12) executed.
+**Build**: `UpdateService` (Windows updater; Android update banner, installs via Obtainium per §10.4), `latest.json` manifest tooling, CI workflow (Appendix E) or local release script, keystore and signing-key backups, security checklist (§12) executed.
 **Done when**: §10.6 acceptance passes with a real N→N+1 update on both devices; every item in §12 is ticked with evidence.
 
 ---
@@ -2865,7 +2876,7 @@ proptest = "*"
     "@tauri-apps/plugin-updater": "*", "@tauri-apps/plugin-process": "*",
     "@supabase/supabase-js": "*", "@tanstack/react-query": "*", "zustand": "*",
     "@tiptap/react": "*", "@tiptap/pm": "*", "@tiptap/starter-kit": "*",
-    "tldraw": "*", "@dnd-kit/core": "*", "@dnd-kit/sortable": "*", "@dnd-kit/utilities": "*",
+    "@dnd-kit/core": "*", "@dnd-kit/sortable": "*", "@dnd-kit/utilities": "*",
     "@codemirror/state": "*", "@codemirror/view": "*", "@codemirror/language": "*", "@codemirror/search": "*",
     "clsx": "*", "tailwind-merge": "*", "fractional-indexing": "*"
   },
@@ -2876,7 +2887,7 @@ proptest = "*"
 }
 ```
 
-(Individual TipTap, CodeMirror language and tldraw packages are added by their milestones. Replace every `*` with an exact pinned version at M0, ★ S10.)
+(Individual TipTap and CodeMirror language packages are added by their milestones; no canvas engine while Canvas is deferred. Replace every `*` with an exact pinned version at M0, ★ S10.)
 
 ### D.3 `src-tauri/tauri.conf.json` (excerpt)
 
@@ -2909,7 +2920,7 @@ proptest = "*"
 }
 ```
 
-> `style-src 'unsafe-inline'` is required by ProseMirror/tldraw dynamic styles. Revisit with nonces if the engines allow it. Never add `unsafe-eval` or remote script hosts.
+> `style-src 'unsafe-inline'` is required by ProseMirror dynamic styles. Revisit with nonces if the engines allow it. Never add `unsafe-eval` or remote script hosts.
 
 ### D.4 Capabilities (platform split)
 
@@ -2973,6 +2984,7 @@ CI/GitHub secrets (never in the repo, never in the app bundle):
 TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY            # used only by the publish step
+RELEASES_REPO_TOKEN                                # fine-grained token: contents:write on kaisen-releases only
 ```
 
 ---
@@ -3048,10 +3060,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-      - run: node scripts/publish-release.mjs     # uploads artifacts, computes sha256, writes latest.json LAST
+      - run: node scripts/publish-release.mjs     # Windows → Supabase, APK → GitHub Release on kaisen-releases, sha256, latest.json LAST
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RELEASES_REPO_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
           VERSION: ${{ needs.gate.outputs.version }}
 ```
 

@@ -9,10 +9,10 @@ Results for SPEC §35 M0. Each spike that needed code has its own throwaway bran
 | S1 Tauri on Windows + Android | **PARTIAL**: invoke round-trip passes on Linux. Windows and phone not run. | `spike/s1-hello` | No. Run it on both devices. |
 | S2 SQLCipher + FTS5 trigram | **PARTIAL**: full pass on Linux x86_64. Windows cross-build compiles. Android not built (no NDK). | `spike/s2-sqlcipher` | No. Run it on Windows and build for Android. |
 | S3 Supabase TOTP + `aal2` | **NOT RUN**: needs your project and Proton Authenticator. Probe script is ready. | `spike/s3-supabase-aal2` | No |
-| S4 Updates | **NOT RUN**: desk research only. Option A as written does not exist off the shelf. | none | **Yes**: choose Android A (custom) or B (Obtainium) |
-| S5 Canvas (tldraw) | **FAIL (licence gate)** under KAISEN's constraints. Touch test not run. | none | **Yes**: approve a fallback dependency |
+| S4 Updates | **NOT RUN** (needs devices). Android mechanism **decided: Obtainium**. | none | Decided 2 Oct |
+| S5 Canvas (tldraw) | **FAIL (licence gate)**. **Decided: Canvas deferred.** | none | Decided 2 Oct |
 | S6 Argon2id speed | **PARTIAL**: desktop numbers taken. Phone binary built and runs under qemu, but no phone timing yet. | `spike/s6-argon2` | No. Run the phone binary. |
-| S7 Misc feasibility | **PARTIAL**: notification scheduling checked in the plugin source. PDF and Back button need a device. | none | Small: see the Windows reminders note |
+| S7 Misc feasibility | **PARTIAL**: notification scheduling checked in the plugin source. PDF and Back button need a device. | none | Windows reminders decided 2 Oct |
 
 Versions checked on 2 Oct 2026: `tauri` 2.12.1, `tauri-build` 2.7.1, `@tauri-apps/cli`/`api` 2.12.1, `rusqlite` 0.40.2 (SQLite 3.51.3, SQLCipher 4.14.0 community), `argon2` 0.6.0, `tauri-plugin-notification` 2.5.1, `tauri-plugin-updater` 2.13.1, `@supabase/supabase-js` 2.117.2, `tldraw` 5.5.1, React 19.3.0, Vite 8.3.2, TypeScript 7.0.2.
 ⚠ crates.io also carries **Tauri 3.0.0-alpha**. The spec says Tauri v2, so pins must stay on `2.x` (`=2.12.1`). A plain `cargo add tauri` would choose 2.x today, but `cargo info` shows the alpha.
@@ -114,7 +114,7 @@ Paste the output into this section. The probe prints the TOTP secret once in you
 - **Option B (Obtainium)** needs no code. It works best with a GitHub-style releases page, so it favours the "public releases-only repo" host in §10.2.
 - **Option C** (`tauri-plugin-hot-update` 0.1.1) is still a 0.1 community plugin and stays ★ S08.
 
-**Decision needed:** **A-custom** (Kotlin plugin, one-tap in-app update, lives in M17) or **B** (Obtainium, zero code, needs a public releases page). I recommend **B for the prototype** and **A-custom at M17**. The demo that an update keeps data can then be done with B as soon as signed APKs exist.
+**Decision (2 Oct 2026, yours):** **Obtainium**, on condition it is secure and not a hassle. APKs go to GitHub Releases on a public binaries-only repo (`kaisen-releases`), which Obtainium tracks natively. Security rests on Android's same-signing-key rule, so the keystore is the secret that matters. Setup is a one-time ~5 minutes on the phone; after that an update is notification → tap → install. Written into SPEC §10.2, §10.4, §10.5, §10.6, M17, Appendix D.5 and E. The demo that an update keeps data still needs signed APKs and the phone.
 
 ---
 
@@ -143,7 +143,7 @@ Paste the output into this section. The probe prints the TOTP secret once in you
 | `@excalidraw/excalidraw` | 0.18.1 | MIT | Freehand, shapes, arrows with bindings, images (standard canvas) |
 | `@xyflow/react` (React Flow) | 12.12.0 | MIT | Node graphs, Start/Trigger nodes, sequence view (Advanced mode) |
 
-**Decision needed:** (a) approve Excalidraw and/or React Flow; or (b) apply for a tldraw hobby licence and accept the watermark and the phone-home ping (which needs a CSP and spec change); or (c) buy a commercial licence. I recommend **(a): Excalidraw for the standard canvas, with React Flow added only if Advanced mode needs it**. Either way the `CanvasEngine` interface in §19.2 stays. Once decided, I'll update §2.3, §19 and Q7 in the spec and run the touch test with S1's shell.
+**Decision (2 Oct 2026, yours):** **leave Canvas out for now.** No canvas engine is added. SPEC §19 is marked deferred, M13 is skipped, and Q7, §2.3, §17.4, §35.2 and Appendix D are updated. The schema keeps the `canvas` kind and `canvas_content` reserved, so Canvas can return without a migration. The fallbacks above stay on record for then.
 
 ---
 
@@ -180,7 +180,7 @@ On Windows, run `spikes\s6-argon2\bin\spike-s6-argon2.exe 7` (sha256 `a7147778�
 
 **Scheduled local notifications.** I checked the source of `tauri-plugin-notification` 2.5.1:
 - **Android: supported.** It uses `AlarmManager`. Without the exact-alarm permission it falls back to an inexact `set`, or to `setAndAllowWhileIdle` when `allowWhileIdle` is set, which matches §32 ("avoid exact-alarm permission"). Its manifest declares `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` and `WAKE_LOCK`, and it re-arms after a reboot through a boot receiver.
-- **Windows: not supported.** The plugin source says: "Scheduling is only implemented on mobile; the desktop implementation delivers the notification immediately and ignores the schedule." So Windows reminders need a Rust-side timer that fires `show()` while the app (or its tray) is running. Reminders won't fire while the app is closed on Windows. **§32 should say so**, and I'll change it if you agree.
+- **Windows: not supported.** The plugin source says: "Scheduling is only implemented on mobile; the desktop implementation delivers the notification immediately and ignores the schedule." So Windows reminders need a Rust-side timer that fires `show()` while the app (or its tray) is running. Reminders won't fire while the app is closed on Windows. **Decided 2 Oct 2026:** SPEC §32.2 and §11.1 now say so.
 - Not yet tested on a device: the permission prompt on Android 13+ and delivery under Doze.
 
 **PDF export on Android:** not run (needs a device). Android System WebView does not implement `window.print()` (from what I know; not verified here), so this needs a native `PrintManager` bridge in Kotlin, or the §18.11 fallback (Windows-only PDF, with HTML/Markdown share on Android). I recommend the fallback for the prototype.
