@@ -162,6 +162,27 @@ pub async fn keys_regenerate_recovery<R: Runtime>(
     .await
 }
 
+/// Sets a new passphrase while unlocked, e.g. right after unlocking with the recovery key
+/// when the old passphrase is forgotten. Needs the DEK in memory, not the old passphrase.
+#[tauri::command]
+pub async fn keys_set_passphrase<R: Runtime>(
+    app: AppHandle<R>,
+    new: String,
+) -> AppResult<UserKeysRow> {
+    let new = secret(new, "new")?;
+    blocking(app, move |state| {
+        require_strong(&new)?;
+        let row = state.key_file.load()?.ok_or(AppError::NotFound)?;
+        let new_row = state
+            .keys
+            .with_dek(|dek| Ok(keys::rewrap_passphrase(&row, dek, new.as_bytes())?))?;
+        state.key_file.save(&new_row)?;
+        tracing::info!("passphrase set after recovery");
+        Ok(new_row)
+    })
+    .await
+}
+
 fn secret(value: String, field: &str) -> AppResult<Zeroizing<String>> {
     let value = Zeroizing::new(value);
     if value.is_empty() || value.chars().count() > MAX_SECRET_CHARS {

@@ -5,6 +5,7 @@ pub mod commands;
 pub mod crypto;
 pub mod error;
 pub mod logging;
+pub mod secure_kv;
 pub mod state;
 
 use tauri::Manager;
@@ -29,6 +30,10 @@ pub fn with_commands<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Bu
         commands::keys::keys_lock,
         commands::keys::keys_change_passphrase,
         commands::keys::keys_regenerate_recovery,
+        commands::keys::keys_set_passphrase,
+        commands::secure_kv::secure_kv_get,
+        commands::secure_kv::secure_kv_set,
+        commands::secure_kv::secure_kv_delete,
     ])
 }
 

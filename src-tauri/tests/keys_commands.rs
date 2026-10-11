@@ -207,3 +207,96 @@ fn strength_command_reports_without_echoing() {
     assert_eq!(s["acceptable"], true);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn secure_kv_is_locked_until_unlock_and_survives_relock() {
+    let (_app, w, dir) = app();
+    assert_eq!(
+        call(&w, "secure_kv_get", json!({ "key": "sb-session" })).unwrap_err()["kind"],
+        "Locked"
+    );
+    assert_eq!(
+        call(
+            &w,
+            "secure_kv_set",
+            json!({ "key": "sb-session", "value": "x" })
+        )
+        .unwrap_err()["kind"],
+        "Locked"
+    );
+
+    call(&w, "keys_bootstrap", json!({ "passphrase": PASS })).unwrap();
+    assert_eq!(
+        call(&w, "secure_kv_get", json!({ "key": "sb-session" })).unwrap(),
+        Value::Null
+    );
+    call(
+        &w,
+        "secure_kv_set",
+        json!({ "key": "sb-session", "value": "{\"t\":\"SECRET-MARKER\"}" }),
+    )
+    .unwrap();
+    assert_eq!(
+        call(&w, "secure_kv_get", json!({ "key": "sb-session" })).unwrap(),
+        json!("{\"t\":\"SECRET-MARKER\"}")
+    );
+    let raw = std::fs::read_to_string(dir.join("secure_kv.json")).unwrap();
+    assert!(!raw.contains("SECRET-MARKER"), "values are sealed on disk");
+
+    call(&w, "keys_lock", json!({})).unwrap();
+    assert_eq!(
+        call(&w, "secure_kv_get", json!({ "key": "sb-session" })).unwrap_err()["kind"],
+        "Locked"
+    );
+    call(&w, "keys_unlock", json!({ "passphrase": PASS })).unwrap();
+    assert_eq!(
+        call(&w, "secure_kv_get", json!({ "key": "sb-session" })).unwrap(),
+        json!("{\"t\":\"SECRET-MARKER\"}")
+    );
+    call(&w, "secure_kv_delete", json!({ "key": "sb-session" })).unwrap();
+    assert_eq!(
+        call(&w, "secure_kv_get", json!({ "key": "sb-session" })).unwrap(),
+        Value::Null
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn forgotten_passphrase_recovery_flow() {
+    let (_app, w, dir) = app();
+    let boot = call(&w, "keys_bootstrap", json!({ "passphrase": PASS })).unwrap();
+    let recovery = boot["recovery_key"].as_str().unwrap().to_owned();
+    call(&w, "keys_lock", json!({})).unwrap();
+    assert_eq!(
+        call(&w, "keys_set_passphrase", json!({ "new": NEW_PASS })).unwrap_err()["kind"],
+        "Locked"
+    );
+
+    // Forgot the passphrase: unlock with the recovery key, then set a new passphrase.
+    call(
+        &w,
+        "keys_unlock_recovery",
+        json!({ "recoveryKey": recovery }),
+    )
+    .unwrap();
+    assert_eq!(
+        call(&w, "keys_set_passphrase", json!({ "new": "short" })).unwrap_err()["kind"],
+        "Validation"
+    );
+    call(&w, "keys_set_passphrase", json!({ "new": NEW_PASS })).unwrap();
+    call(&w, "keys_lock", json!({})).unwrap();
+    assert_eq!(
+        call(&w, "keys_unlock", json!({ "passphrase": PASS })).unwrap_err()["kind"],
+        "Validation"
+    );
+    call(&w, "keys_unlock", json!({ "passphrase": NEW_PASS })).unwrap();
+    // The recovery key still works after a passphrase change.
+    call(&w, "keys_lock", json!({})).unwrap();
+    call(
+        &w,
+        "keys_unlock_recovery",
+        json!({ "recoveryKey": recovery }),
+    )
+    .unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+}
