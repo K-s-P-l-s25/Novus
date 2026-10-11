@@ -1,11 +1,26 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { lockNow } from "../features/auth/keysFlow";
 import { actions } from "../lib/actions";
 import { ROOMS } from "./rooms";
 
-/** Registers nav.<room> actions (Ctrl+1 … Ctrl+7) and dispatches global key presses. */
+/** Registers nav.<room> actions (Ctrl+1 … Ctrl+7), lock.now (Ctrl+L) and dispatches key presses. */
 export function useNavActions(): void {
   const navigate = useNavigate();
+  const client = useQueryClient();
+
+  useEffect(
+    () =>
+      actions.register({
+        id: "lock.now",
+        title: "Lock KAISEN",
+        group: "Security",
+        defaultAccelerator: "Ctrl+L",
+        run: () => lockNow(client),
+      }),
+    [client],
+  );
 
   useEffect(() => {
     const unregister = ROOMS.map((room) =>

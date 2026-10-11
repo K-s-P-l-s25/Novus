@@ -36,4 +36,12 @@ export const ipc = {
     call<UserKeysRow>("keys_change_passphrase", { old: oldPassphrase, new: newPassphrase }),
   keysRegenerateRecovery: (passphrase: string): Promise<KeysWithRecovery> =>
     call<KeysWithRecovery>("keys_regenerate_recovery", { passphrase }),
+  keysSetPassphrase: (newPassphrase: string): Promise<UserKeysRow> =>
+    call<UserKeysRow>("keys_set_passphrase", { new: newPassphrase }),
+
+  secureKvGet: (key: string): Promise<string | null> =>
+    call<string | null>("secure_kv_get", { key }),
+  secureKvSet: (key: string, value: string): Promise<undefined> =>
+    call<undefined>("secure_kv_set", { key, value }),
+  secureKvDelete: (key: string): Promise<undefined> => call<undefined>("secure_kv_delete", { key }),
 };

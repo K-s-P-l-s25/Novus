@@ -5,11 +5,14 @@ import { Icon } from "../components/Icon";
 import { cn } from "../lib/cn";
 import { DESKTOP_QUERY, useMediaQuery } from "./useMediaQuery";
 import { useNavActions } from "./useNavActions";
+import { useAutoLock } from "./useAutoLock";
+import { actions } from "../lib/actions";
 import { ROOMS, isRoomActive, type Room } from "./rooms";
 
 export function AppShell() {
   const desktop = useMediaQuery(DESKTOP_QUERY);
   useNavActions();
+  useAutoLock();
   return desktop ? (
     <div className="flex h-dvh bg-bg text-text">
       <DesktopRail />
@@ -38,6 +41,15 @@ function DesktopRail() {
       {ROOMS.map((room) => (
         <RailLink key={room.id} room={room} active={isRoomActive(room, pathname)} />
       ))}
+      <button
+        type="button"
+        onClick={() => void actions.run("lock.now")}
+        title="Lock (Ctrl+L)"
+        className="mt-auto flex min-h-14 w-16 flex-col items-center justify-center gap-1 rounded-card text-[0.7rem] text-muted hover:bg-elevated hover:text-text"
+      >
+        <Icon name="lock" />
+        <span>Lock</span>
+      </button>
     </nav>
   );
 }

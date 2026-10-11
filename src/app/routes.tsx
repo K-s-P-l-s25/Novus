@@ -9,13 +9,21 @@ import { ShopPage } from "../features/shop/ShopPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 import { MorePage } from "../features/settings/MorePage";
-import { SystemPage } from "../features/system/SystemPage";
+import { RequireState, RequireUnlocked } from "../features/auth/RequireUnlocked";
+import { SetupWizard } from "../features/auth/SetupWizard";
+import { UnlockPage } from "../features/auth/UnlockPage";
+import { RecoverPage } from "../features/auth/RecoverPage";
+import { AuthPage } from "../features/auth/AuthPage";
 import { NotFoundPage } from "../features/system/NotFoundPage";
 
 // Routes per SPEC §14.1.
 export const routes: RouteObject[] = [
   {
-    element: <AppShell />,
+    element: (
+      <RequireUnlocked>
+        <AppShell />
+      </RequireUnlocked>
+    ),
     children: [
       { index: true, element: <GatehousePage /> },
       { path: "vaults", element: <VaultsPage /> },
@@ -32,8 +40,36 @@ export const routes: RouteObject[] = [
       { path: "*", element: <NotFoundPage /> },
     ],
   },
-  { path: "setup", element: <SystemPage kind="setup" /> },
-  { path: "auth", element: <SystemPage kind="auth" /> },
-  { path: "unlock", element: <SystemPage kind="unlock" /> },
-  { path: "recover", element: <SystemPage kind="recover" /> },
+  {
+    path: "setup",
+    element: (
+      <RequireState when="no-keys">
+        <SetupWizard />
+      </RequireState>
+    ),
+  },
+  {
+    path: "unlock",
+    element: (
+      <RequireState when="locked">
+        <UnlockPage />
+      </RequireState>
+    ),
+  },
+  {
+    path: "recover",
+    element: (
+      <RequireState when="locked">
+        <RecoverPage />
+      </RequireState>
+    ),
+  },
+  {
+    path: "auth",
+    element: (
+      <RequireUnlocked>
+        <AuthPage />
+      </RequireUnlocked>
+    ),
+  },
 ];

@@ -1,36 +1,20 @@
-import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RouterProvider, createMemoryRouter } from "react-router";
-import { routes } from "./routes";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { createFakeBackend } from "../test/fakeBackend";
+import { renderAt } from "../test/renderApp";
 import { ROOMS } from "./rooms";
 import { setViewport } from "../test/setup";
 
+const backend = vi.hoisted(() => ({
+  current: null as null | ReturnType<typeof createFakeBackend>,
+}));
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async (cmd: string) => {
-    if (cmd === "app_info") {
-      return {
-        version: "0.1.0",
-        schema_version: 0,
-        payload_v: 1,
-        platform: "windows",
-        device_id: null,
-      };
-    }
-    throw { kind: "NotFound" };
-  }),
+  invoke: (cmd: string, args?: Record<string, unknown>) => backend.current?.invoke(cmd, args),
 }));
 
-function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] });
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-  return router;
-}
+beforeEach(() => {
+  backend.current = createFakeBackend({ has_keys: true, unlocked: true });
+});
 
 const HEADINGS: Record<string, string> = {
   "/": "Gatehouse",
@@ -46,46 +30,46 @@ const HEADINGS: Record<string, string> = {
   "/settings/about": "About",
   "/more": "More",
   "/does-not-exist": "Not found",
-  "/setup": "Set up KAISEN",
-  "/auth": "Sign in",
-  "/unlock": "Unlock",
-  "/recover": "Recover",
 };
 
 describe("every route renders its room", () => {
   for (const [path, heading] of Object.entries(HEADINGS)) {
-    it(path, () => {
+    it(path, async () => {
       setViewport(1280);
       renderAt(path);
-      expect(screen.getByRole("heading", { level: 1, name: heading })).toBeTruthy();
+      expect(await screen.findByRole("heading", { level: 1, name: heading })).toBeTruthy();
     });
   }
 });
 
 describe("desktop shell", () => {
-  it("shows a rail with every room and marks the active one", () => {
+  it("shows a rail with every room and marks the active one", async () => {
     setViewport(1024);
     renderAt("/journey?tab=timeline");
-    const nav = screen.getByRole("navigation", { name: "Rooms" });
+    const nav = await screen.findByRole("navigation", { name: "Rooms" });
     expect(within(nav).getAllByRole("link")).toHaveLength(ROOMS.length);
+    expect(within(nav).getByRole("button", { name: /Lock/ })).toBeTruthy();
     expect(within(nav).getByRole("link", { current: "page" }).getAttribute("href")).toBe(
       "/journey",
     );
     expect(screen.getByRole("tab", { name: "Timeline", selected: true })).toBeTruthy();
   });
 
-  it("navigates with the rail", () => {
+  it("navigates with the rail", async () => {
     setViewport(1024);
-    const router = renderAt("/");
-    fireEvent.click(within(screen.getByRole("navigation", { name: "Rooms" })).getByTitle(/^Shop/));
+    const { router } = renderAt("/");
+    fireEvent.click(
+      within(await screen.findByRole("navigation", { name: "Rooms" })).getByTitle(/^Shop/),
+    );
     expect(router.state.location.pathname).toBe("/shop");
     // Inventory is the first and default tab.
     expect(screen.getByRole("tab", { name: "Inventory", selected: true })).toBeTruthy();
   });
 
-  it("Ctrl+1 … Ctrl+7 jump between rooms", () => {
+  it("Ctrl+1 … Ctrl+7 jump between rooms", async () => {
     setViewport(1024);
-    const router = renderAt("/");
+    const { router } = renderAt("/");
+    await screen.findByRole("navigation", { name: "Rooms" });
     ROOMS.forEach((room, i) => {
       act(() => {
         fireEvent.keyDown(window, { key: String(i + 1), ctrlKey: true });
@@ -96,10 +80,10 @@ describe("desktop shell", () => {
 });
 
 describe("mobile shell", () => {
-  it("shows four room tabs plus More, with touch-size targets", () => {
+  it("shows four room tabs plus More, with touch-size targets", async () => {
     setViewport(390);
     renderAt("/");
-    const nav = screen.getByRole("navigation", { name: "Rooms" });
+    const nav = await screen.findByRole("navigation", { name: "Rooms" });
     const links = within(nav).getAllByRole("link");
     expect(links.map((l) => l.textContent)).toEqual([
       "Gatehouse",
@@ -111,9 +95,10 @@ describe("mobile shell", () => {
     for (const l of links) expect(l.className).toContain("min-h-14");
   });
 
-  it("More lists the remaining rooms and marks More active inside them", () => {
+  it("More lists the remaining rooms and marks More active inside them", async () => {
     setViewport(390);
     renderAt("/more");
+    await screen.findByRole("heading", { name: "More" });
     expect(screen.getAllByRole("link").map((l) => l.textContent)).toEqual(
       expect.arrayContaining(["Craft Room", "Profile", "Settings"]),
     );
@@ -128,5 +113,18 @@ describe("Settings → About", () => {
     expect(about.textContent).toContain("0.1.0");
     expect(about.textContent).toContain("windows");
     expect(about.textContent).toContain("Not created yet");
+  });
+});
+
+describe("lock", () => {
+  it("Ctrl+L locks and the guard sends you to the unlock screen", async () => {
+    setViewport(1024);
+    renderAt("/journey");
+    await screen.findByRole("heading", { name: "Journey" });
+    act(() => {
+      fireEvent.keyDown(window, { key: "l", ctrlKey: true });
+    });
+    expect(await screen.findByRole("heading", { name: "Unlock" })).toBeTruthy();
+    await waitFor(() => expect(backend.current?.state.unlocked).toBe(false));
   });
 });

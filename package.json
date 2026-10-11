@@ -16,13 +16,15 @@
     "e2e": "node scripts/e2e-smoke.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.117.3",
     "@tanstack/react-query": "5.104.1",
     "@tauri-apps/api": "2.12.3",
     "clsx": "2.1.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-router": "8.4.0",
-    "tailwind-merge": "3.7.0"
+    "tailwind-merge": "3.7.0",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
