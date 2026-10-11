@@ -251,7 +251,9 @@ UI event → invoke("quest_complete") → Rust command (validate) → Service (o
 | `fractional-indexing` or Rust equivalent | Order keys (§6.6) | Required (one of the two) |
 | `recharts` | Analytics charts | Optional (hand-rolled SVG is acceptable) |
 | `canvas-confetti` | Quest completion effect | Optional |
-| `vitest`, `@testing-library/react`, `eslint`, `prettier`, `typescript` | Dev tooling | Required (dev) |
+| `vitest`, `@testing-library/react`, `eslint`, `prettier`, `typescript` | Dev tooling | Required (dev). TypeScript is pinned to **6.0.x** because `typescript-eslint` does not support 7.x yet |
+| `typescript-eslint`, `@eslint/js`, `eslint-plugin-react-hooks`, `@types/react`, `@types/react-dom`, `jsdom`, `@testing-library/dom` | Lint TypeScript/React, React types, DOM for Vitest (required peer of Testing Library) | Approved at M1 (dev only, not bundled) |
+| `vite`, `@vitejs/plugin-react`, `tailwindcss`, `@tailwindcss/vite`, `@tauri-apps/cli` | Build tooling (as in Appendix D.2) | Required (dev) |
 
 **Rust (Cargo)**
 
@@ -262,13 +264,14 @@ UI event → invoke("quest_complete") → Rust command (validate) → Service (o
 | `argon2`, `chacha20poly1305`, `hkdf`, `sha2`, `rand`, `zeroize`, `subtle` | Cryptography |
 | `uuid` (features `v4`, `v5`, `v7`) | Identifiers |
 | `serde`, `serde_json`, `base64`, `thiserror`, `anyhow`, `tracing`, `tracing-appender` | Plumbing and logging |
+| `tracing-subscriber` (features `fmt`, `std`, `env-filter`) | Wires `tracing` to the `tracing-appender` log file. Approved at M1 |
 | `regex` | Regex search and custom SQL function |
 | `fractional_index` | Order keys |
 | `rrule` | Recurring quests |
 | `time` or `chrono` | Dates, local-day computation |
 | `zip` | Markdown/backup archives |
 | `proptest` (dev) | Sync convergence property tests |
-| `ts-rs` (★ S09) | Generate TypeScript types from Rust structs |
+| `ts-rs` (★ S09, adopted in M1) | Generate TypeScript types from Rust structs |
 
 ### 2.4 ★ Suggestions on the stack
 
@@ -1937,7 +1940,12 @@ All colours, radii and shadows come from **CSS custom properties** on `:root` / 
   --kaisen-text: #e6e8ef; --kaisen-text-muted: #9aa1b5; --kaisen-border: #2a2f40;
   --kaisen-gold: #f5b83d; --kaisen-danger: #ef5b5b; --kaisen-success: #38c172; --kaisen-radius: 14px;
 }
-[data-theme="dawn"] { --kaisen-bg:#fbf8f3; --kaisen-surface:#ffffff; --kaisen-elevated:#f3eee6; --kaisen-accent:#d9822b; --kaisen-accent-fg:#ffffff; --kaisen-text:#241f19; --kaisen-text-muted:#6f665a; --kaisen-border:#e4dccf; }
+[data-theme="dawn"] { --kaisen-bg:#fbf8f3; --kaisen-surface:#ffffff; --kaisen-elevated:#f3eee6; --kaisen-accent:#a0560f; --kaisen-accent-fg:#ffffff; --kaisen-text:#241f19; --kaisen-text-muted:#6f665a; --kaisen-border:#e4dccf;
+                      --kaisen-gold:#8c6000; --kaisen-danger:#c0392b; --kaisen-success:#1e7d4a; }
+/* M1: Dawn accent darkened from #d9822b (2.8:1 on bg) and Dawn gold/danger/success added so every
+   text pair meets 4.5:1 (§27.5). Until the theme setting exists (M15), the OS light/dark choice
+   picks Dawn or Midnight. Tailwind's default colour palette is disabled (`--color-*: initial`)
+   so raw colour classes cannot be used. */
 ```
 
 ### 29.3 Tokens
@@ -2920,6 +2928,8 @@ proptest = "*"
 }
 ```
 
+> M1: `connect-src` has no Supabase hosts yet. M3 adds `https://<PROJECT_REF>.supabase.co` and `wss://<PROJECT_REF>.supabase.co` when the client first talks to Supabase.
+>
 > `style-src 'unsafe-inline'` is required by ProseMirror dynamic styles. Revisit with nonces if the engines allow it. Never add `unsafe-eval` or remote script hosts.
 
 ### D.4 Capabilities (platform split)
@@ -2967,7 +2977,7 @@ proptest = "*"
 }
 ```
 
-(Add `biometric:default` here for ★ S02. Scope `opener:allow-open-url` to `https`, `http` and `mailto` per the plugin's scope syntax.)
+(M1: each file grants only permissions of plugins that are actually installed. A plugin's permissions are added by the milestone that installs it, so `default.json` starts with `core:default` and `desktop.json`/`mobile.json` start empty. Add `biometric:default` here for ★ S02. Scope `opener:allow-open-url` to `https`, `http` and `mailto` per the plugin's scope syntax.)
 
 ### D.5 Environment and secrets
 
