@@ -1,0 +1,115 @@
+# Checks on every push. The Windows and Android jobs (build + shell smoke test on real Windows
+# and an Android emulator) run only on pull requests and manual runs, to save runner minutes.
+name: ci
+on:
+  push:
+    paths-ignore: ["docs/**", "**/*.md"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # A new push must not cancel a running PR build of the same branch.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: "rustfmt, clippy" }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - name: Linux WebView build deps
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libwebkit2gtk-4.1-dev librsvg2-dev libayatana-appindicator3-dev
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: mkdir -p dist
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Generated TS types are up to date
+        run: git diff --exit-code -- src/types/generated
+
+  windows:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - run: npm ci
+      - name: Build the Windows installer (normal config, for manual testing)
+        run: npx tauri build --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kaisen-windows-installer
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 14
+      - name: "Build for the smoke test (CI only: DevTools port opened through window args)"
+        shell: pwsh
+        run: |
+          '{"app":{"windows":[{"label":"main","title":"KAISEN","width":1280,"height":800,"minWidth":960,"minHeight":600,"additionalBrowserArgs":"--remote-debugging-port=9222 --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"}]}}' | Set-Content -Encoding utf8NoBOM ci-devtools.json
+          npx tauri build --no-bundle --config ci-devtools.json
+      - name: Shell smoke test (rooms, CSP, IPC) in WebView2
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "src-tauri\target\release\kaisen.exe" -PassThru
+          node scripts/e2e-smoke.mjs cdp 9222
+          $code = $LASTEXITCODE
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          exit $code
+
+  android:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          {
+            targets: "aarch64-linux-android,x86_64-linux-android,armv7-linux-androideabi,i686-linux-android",
+          }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - run: npm ci
+      - name: Android project and debug APK (x86_64 for the emulator)
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          [ -d src-tauri/gen/android ] || npx tauri android init --ci
+          npx tauri android build --debug --apk --target x86_64
+          cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)" kaisen-debug.apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Shell smoke test (rooms, CSP, IPC) on Android 14 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash scripts/android-smoke.sh kaisen-debug.apk dev.alexreid.kaisen

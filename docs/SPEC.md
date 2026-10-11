@@ -1,15 +1,15 @@
-# ARU — Master Document · Personal Edition
+# KAISEN — Master Document · Personal Edition
 
 **Architecture & Technical Design · Feature Technical Principles · Prototype Build Pack**
 
 |  |  |
 |---|---|
-| **Owner** | Property of Alex Reid & ARU Ltd — **Not for distribution** |
+| **Owner** | Property of Alex Reid & KAISEN Ltd — **Not for distribution** |
 | **Edition** | Personal Edition v2.0 (single user, no commercial rollout) |
 | **Date** | 2 October 2026 |
 | **Targets** | Windows 10/11 (x64) and Android (arm64, API 26+) |
 | **Stack** | Supabase · Tauri v2 + Vite · Tailwind CSS · Rust (primary) · TypeScript (secondary) |
-| **Source documents** | ARU Master Document v1.0 (Parts I and III), *Features (Draft)* PDF |
+| **Source documents** | KAISEN Master Document v1.0 (Parts I and III), *Features (Draft)* PDF |
 
 ---
 
@@ -25,7 +25,7 @@ This file is written to be read by both a human and a coding agent. Every schema
 ### Kickoff prompt (paste as the first message)
 
 ```text
-You are building ARU, a personal, offline-first, end-to-end-encrypted note/quest app
+You are building KAISEN, a personal, offline-first, end-to-end-encrypted note/quest app
 for Windows and Android using Tauri v2 + Vite + React + Tailwind (TypeScript frontend),
 Rust backend, and Supabase as the only cloud service.
 
@@ -137,7 +137,7 @@ report the result in docs/SPIKES.md (pass/fail, evidence, decision), and stop fo
 | Q4 | **Template "visibility"** | With one user, I reinterpret *visibility* as **Shown / Hidden** in quick-create menus. | The business edition meant shared/private. |
 | Q5 | **Android floor** | API 26 (Android 8.0) minimum, arm64 devices. | Affects the Keystore and notification APIs. |
 | Q6 | **Windows ARM** | Not targeted. x64 only. | Easy to add later. |
-| Q7 | **Canvas licence** | ⚠ My v1.0 document called tldraw "MIT". I should correct that: current tldraw SDK versions use a custom licence and show a watermark without a licence key. A free non-commercial tier exists, but **verify at tldraw.dev before committing** (spike S5). | A licence surprise late in the build is expensive. Canvas is wrapped behind an interface so it can be swapped. |
+| Q7 | **Canvas licence** | **Resolved (M0 spike S5, 2 Oct 2026): Canvas is deferred.** tldraw needs a licence key in production; the free hobby licence keeps a watermark and phones home to tldraw.com, which conflicts with B2.1. You chose to leave Canvas out for now rather than approve a fallback engine (§19). | Revisit when Canvas comes back; the MIT fallbacks (Excalidraw, React Flow) are recorded in `docs/SPIKES.md`. |
 | Q8 | **Journey "Timeline"** | You asked for suggestions. I propose a Quest-Log vertical journey (§25.3) as ★ S14. | Choose the minimal list timeline or the richer journey map. |
 
 ## B4. Corrections to my earlier documents
@@ -165,7 +165,7 @@ report the result in docs/SPIKES.md (pass/fail, evidence, decision), and stop fo
 │        ▼                                                            │   │        ▼                                            │
 │  Rust core: services · repo · crypto · HLC · merge · FTS · export   │   │  Rust core: identical crate                         │
 │        ▼                                                            │   │        ▼                                            │
-│  SQLCipher DB (aru.db, AES-256)  +  encrypted attachment files      │   │  SQLCipher DB + encrypted attachment files          │
+│  SQLCipher DB (kaisen.db, AES-256)  +  encrypted attachment files   │   │  SQLCipher DB + encrypted attachment files          │
 └───────────────┬─────────────────────────────────────────────────────┘   └──────────────────┬──────────────────────────────────┘
                 │  HTTPS (ciphertext only)                                                    │
                 ▼                                                                             ▼
@@ -201,7 +201,7 @@ report the result in docs/SPIKES.md (pass/fail, evidence, decision), and stop fo
 ```text
 UI event → invoke("quest_complete") → Rust command (validate) → Service (one SQLite transaction)
    → repo.write(): row update + outbox entry + search reindex + domain events
-   → commit → emit "aru://changed" → TanStack Query invalidates → UI re-renders
+   → commit → emit "kaisen://changed" → TanStack Query invalidates → UI re-renders
    → (background) sync loop: outbox → encrypt → supabase push → pull → decrypt → merge
 ```
 
@@ -244,14 +244,16 @@ UI event → invoke("quest_complete") → Rust command (validate) → Service (o
 | `@tanstack/react-query` | Cache and invalidation over `invoke()` | Required (it is in your original stack; it now caches local Rust queries, not network data) |
 | `zustand` | Small UI state (modals, sidebar, active vault) | Required |
 | `@tiptap/*` (react, pm, starter-kit, extensions) | Notes editor | Required |
-| `tldraw` (or fallback, see Q7) | Canvas | Required, **licence gate at M0** |
+| ~~`tldraw`~~ | Canvas | **Deferred** with the Canvas feature (Q7, §19). Do not add any canvas engine without approval |
 | `@codemirror/*` | Codex editor | Required |
 | `@dnd-kit/*` | Drag and drop (Board, lists, builders) | Required |
 | `clsx`, `tailwind-merge` | Class composition | Required |
 | `fractional-indexing` or Rust equivalent | Order keys (§6.6) | Required (one of the two) |
 | `recharts` | Analytics charts | Optional (hand-rolled SVG is acceptable) |
 | `canvas-confetti` | Quest completion effect | Optional |
-| `vitest`, `@testing-library/react`, `eslint`, `prettier`, `typescript` | Dev tooling | Required (dev) |
+| `vitest`, `@testing-library/react`, `eslint`, `prettier`, `typescript` | Dev tooling | Required (dev). TypeScript is pinned to **6.0.x** because `typescript-eslint` does not support 7.x yet |
+| `typescript-eslint`, `@eslint/js`, `eslint-plugin-react-hooks`, `@types/react`, `@types/react-dom`, `jsdom`, `@testing-library/dom` | Lint TypeScript/React, React types, DOM for Vitest (required peer of Testing Library) | Approved at M1 (dev only, not bundled) |
+| `vite`, `@vitejs/plugin-react`, `tailwindcss`, `@tailwindcss/vite`, `@tauri-apps/cli` | Build tooling (as in Appendix D.2) | Required (dev) |
 
 **Rust (Cargo)**
 
@@ -262,13 +264,14 @@ UI event → invoke("quest_complete") → Rust command (validate) → Service (o
 | `argon2`, `chacha20poly1305`, `hkdf`, `sha2`, `rand`, `zeroize`, `subtle` | Cryptography |
 | `uuid` (features `v4`, `v5`, `v7`) | Identifiers |
 | `serde`, `serde_json`, `base64`, `thiserror`, `anyhow`, `tracing`, `tracing-appender` | Plumbing and logging |
+| `tracing-subscriber` (features `fmt`, `std`, `env-filter`) | Wires `tracing` to the `tracing-appender` log file. Approved at M1 |
 | `regex` | Regex search and custom SQL function |
 | `fractional_index` | Order keys |
 | `rrule` | Recurring quests |
 | `time` or `chrono` | Dates, local-day computation |
 | `zip` | Markdown/backup archives |
 | `proptest` (dev) | Sync convergence property tests |
-| `ts-rs` (★ S09) | Generate TypeScript types from Rust structs |
+| `ts-rs` (★ S09, adopted in M1) | Generate TypeScript types from Rust structs |
 
 ### 2.4 ★ Suggestions on the stack
 
@@ -281,7 +284,7 @@ UI event → invoke("quest_complete") → Rust command (validate) → Service (o
 ## 3. Repository layout
 
 ```text
-aru/
+kaisen/
 ├─ CLAUDE.md                      # agent rules (root)
 ├─ docs/
 │  ├─ SPEC.md                     # this document
@@ -462,11 +465,11 @@ DEK (random 256-bit, generated once on first device)
    └─ wrapped by KEK_r → user_keys.wrapped_dek_recovery  (stored in Supabase; useless without recovery key)
 
 DEK ──HKDF-SHA256──► sub-keys (domain-separated)
-   ├─ "aru/db/v1"     → SQLCipher raw key (local database)
-   ├─ "aru/sync/v1"   → encrypts every sync_records payload
-   ├─ "aru/blob/v1"   → encrypts attachment files (local + Storage)
-   ├─ "aru/backup/v1" → encrypts backup archives
-   └─ "aru/kv/v1"     → encrypts the stored Supabase session
+   ├─ "kaisen/db/v1"     → SQLCipher raw key (local database)
+   ├─ "kaisen/sync/v1"   → encrypts every sync_records payload
+   ├─ "kaisen/blob/v1"   → encrypts attachment files (local + Storage)
+   ├─ "kaisen/backup/v1" → encrypts backup archives
+   └─ "kaisen/kv/v1"     → encrypts the stored Supabase session
 
 Vault key (random 256-bit per protected vault)
    └─ wrapped by Argon2id(vault password) → vaults.wrapped_key (synced inside the vault record)
@@ -494,7 +497,7 @@ Vault key (random 256-bit per protected vault)
 Every sync payload is sealed with **AAD** (additional authenticated data):
 
 ```text
-AAD = "aru|" + entity + "|" + record_id + "|" + hlc + "|" + payload_v
+AAD = "kaisen|" + entity + "|" + record_id + "|" + hlc + "|" + payload_v
 ```
 
 A malicious or buggy server cannot move one record's ciphertext onto another record, nor attach an old payload to a newer clock, without authentication failing. Replaying an *older whole record* is neutralised by the last-write-wins clock check (§7.4).
@@ -691,7 +694,7 @@ Lists you can reorder (vaults, files, Board columns and cards, quests, checklist
 ### 6.8 Migrations 🔒
 
 - Forward-only numbered SQL files in `src-tauri/migrations/`, embedded with `include_str!`, applied in a transaction at startup, tracked by `meta.schema_version`.
-- **Before applying any migration**, copy the DB file to `aru.db.bak-<oldversion>` (keep the last 2).
+- **Before applying any migration**, copy the DB file to `kaisen.db.bak-<oldversion>` (keep the last 2).
 - A new app version must refuse to open a DB with a *higher* schema version than it knows.
 - Schema and sync payload versions are separate (`payload_v`, §7.9).
 
@@ -799,7 +802,7 @@ apply(remote):
 
 ### 7.7 Attachments (images, files)
 
-- Metadata row `attachment` syncs like any record. The blob is encrypted with the `aru/blob/v1` sub-key (`nonce ‖ ciphertext`) and stored locally in `att/<id>`.
+- Metadata row `attachment` syncs like any record. The blob is encrypted with the `kaisen/blob/v1` sub-key (`nonce ‖ ciphertext`) and stored locally in `att/<id>`.
 - Upload to Storage path `{user_id}/{attachment_id}` (immutable; never overwritten).
 - Local `attachment_state(id, local_path, uploaded, downloaded)` drives two queues. Downloads are **lazy** (on first view) with an optional "download all on Wi-Fi" setting.
 - Size cap per file (default 25 MB) to protect free-tier storage and mobile data.
@@ -890,11 +893,10 @@ Default: **Supabase Storage public bucket `releases`** (keeps you inside "just S
 
 ```text
 releases/latest.json                           ← updater manifest (public)
-releases/windows/aru_<ver>_x64-setup.exe  + .sig
-releases/android/aru_<ver>_arm64.apk
+releases/windows/kaisen_<ver>_x64-setup.exe  + .sig
 ```
 
-Alternative: a separate **public** GitHub repo containing release binaries only (no source). Convenient for GitHub-native tools; choose whichever you prefer. Binaries contain no secrets (the publishable key is public by design).
+**Android APKs are the exception (decision after spike S4):** they are published as **GitHub Releases on a separate public, binaries-only repo** (e.g. `kaisen-releases`, no source code), because Obtainium (§10.4) tracks GitHub Releases natively. Binaries contain no secrets (the publishable key is public by design). `latest.json` still carries an `android` block so the app can show an "Update available" banner.
 
 ### 10.3 Windows
 
@@ -908,31 +910,38 @@ Alternative: a separate **public** GitHub repo containing release binaries only 
   "notes": "Fixes board drag on touch; adds timeline filters.",
   "pub_date": "2026-10-02T12:00:00Z",
   "platforms": {
-    "windows-x86_64": { "signature": "<contents of .sig>", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/windows/aru_0.4.2_x64-setup.exe" }
+    "windows-x86_64": { "signature": "<contents of .sig>", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/windows/kaisen_0.4.2_x64-setup.exe" }
   },
-  "android": { "version": "0.4.2", "url": "https://<ref>.supabase.co/storage/v1/object/public/releases/android/aru_0.4.2_arm64.apk", "sha256": "<hex>" },
+  "android": { "version": "0.4.2", "url": "https://github.com/<you>/kaisen-releases/releases/tag/v0.4.2", "sha256": "<hex>" },
   "min_payload_v": 1
 }
 ```
 
-(The `android` block is **our own extension** read by our code, not by the Tauri updater.)
+(The `android` block is **our own extension** read by our code, not by the Tauri updater. On Android it only drives a non-blocking banner; the install itself is done by Obtainium.)
 
 - Personal-use signing: you do **not** need an EV code-signing certificate. Windows SmartScreen may show a one-time warning on first install; the updater's own signature check is what protects updates.
 - UX: silent check on launch and every 6 hours; non-blocking banner "Update 0.4.2 ready — Restart"; install mode `passive`.
 
-### 10.4 Android (decision deferred to spike S4)
+### 10.4 Android: Obtainium (decided after spike S4)
 
-Three viable mechanisms, in order of preference:
+**Decision:** full Android updates use **Obtainium**, a free, open-source (GPL-3.0) Android app that watches a release source and installs new versions. KAISEN ships **no installer code**. An in-app installer was rejected for now: the only off-the-shelf plugin (`tauri-plugin-android-update`) just opens a browser page and does its network calls in Rust, against rule 3. A custom Kotlin installer (~100–150 lines) remains possible later.
 
-| Option | How | Pros | Cons |
-|---|---|---|---|
-| **A. In-app APK update** | `UpdateService` reads `latest.json`, downloads the APK, verifies **SHA-256 and the APK signature** (same keystore), then hands it to Android's package installer. A community crate/plugin (e.g. `tauri-plugin-android-update`) or ~60 lines of Kotlin can do the install step. | Feels like OTA; one tap | Android shows its "install unknown apps" permission once; ⚠ plugin maturity must be checked |
-| **B. Obtainium** | Free open-source Android app that watches a release page and installs updates | Zero code | Works best with GitHub-style release pages (so favours the public-releases-repo option) |
-| **C. Frontend hot-update plugin** | `tauri-plugin-hot-update` swaps the web bundle with rollback protection | Instant UI fixes without reinstall | ⚠ New community plugin (0.1.x). Rust changes still need Option A or B. |
+**One-time setup on the phone (about 5 minutes):**
+1. Install Obtainium from **F-Droid** or its official GitHub releases (not a mirror site).
+2. In Obtainium: *Add app* → paste `https://github.com/<you>/kaisen-releases` → it detects the latest release and installs the APK. Android asks once to allow "install unknown apps" for Obtainium.
+3. Leave Obtainium's background update check on. From then on an update is: notification → tap → Android's install prompt → done. Local data is kept.
 
-**Recommendation:** ship Option **A** (or **B** if A's plugin fails the spike) for full updates. Treat **C** as ★ **S08** after the app is stable.
+**Why it is secure:**
+- **Android itself enforces the signing key.** An update only installs over the existing app if it is signed with the **same keystore**. A compromised GitHub account, release page or Obtainium can at worst offer an APK that Android refuses (or a fresh install that cannot read the existing app's data). The keystore is the secret that matters: it stays offline and in CI secrets only, backed up in two places.
+- Each release lists the APK's **SHA-256** (also in `latest.json`) for manual checking.
+- The releases repo holds binaries only, no source and no secrets. Use 2FA on the GitHub account and a fine-grained CI token limited to that one repo (`contents: write`).
+- Obtainium needs no account and sends nothing to any KAISEN service. It only reads the public GitHub releases page.
 
-Android requirements regardless of option:
+**In-app behaviour:** the app reads `latest.json` (as on Windows). If `android.version` is newer it shows a non-blocking banner "Update 0.4.2 available — open Obtainium". If a pulled record needs a newer `payload_v` (§7.9) the banner is persistent.
+
+**Option C** (`tauri-plugin-hot-update`, UI-only hot updates) stays ★ **S08** after the app is stable.
+
+Android release requirements:
 
 - **Always sign release APKs with the same keystore.** A different key means Android refuses the update and you must uninstall (losing local data until you re-sync). Back up the keystore and its password in two places.
 - Keep `applicationId` constant. Increase `versionCode` every release (derive from semver).
@@ -946,8 +955,9 @@ CI (.github/workflows/release.yml):
    gate:    skip unless package/tauri version > version in releases/latest.json
    windows: build NSIS + updater artifacts, sign with TAURI_SIGNING_PRIVATE_KEY
    android: build signed APK (keystore from secrets)
-   publish: upload artifacts to Supabase Storage `releases/`, then upload new latest.json LAST
-devices: check latest.json → show banner → install
+   publish: Windows artifacts → Supabase Storage `releases/`; APK → GitHub Release on `kaisen-releases`;
+            then upload new latest.json LAST
+devices: Windows: check latest.json → banner → install · Android: Obtainium notifies → tap → install
 ```
 
 Uploading `latest.json` **last** guarantees devices never see a manifest pointing at a file that is not there yet. Skeleton workflow: Appendix E.
@@ -958,7 +968,7 @@ Alternative with no CI: `scripts/release.mjs` builds locally on your Windows mac
 
 - Migrations run on first launch of the new version (§6.8) after an automatic DB backup.
 - A device that has not updated keeps working locally; if the other device writes a newer `payload_v`, sync pauses until it updates (§7.9).
-- ✅ **ACCEPTANCE** — Publish version N+1 with a new migration. Windows updates, relaunches, migrates and syncs. Android installs the APK, keeps local data (same keystore), migrates and syncs. Rolling back is not supported; fix forward.
+- ✅ **ACCEPTANCE** — Publish version N+1 with a new migration. Windows updates, relaunches, migrates and syncs. Android installs the APK through Obtainium, keeps local data (same keystore), migrates and syncs. Rolling back is not supported; fix forward.
 
 ---
 
@@ -974,8 +984,8 @@ Alternative with no CI: `scripts/release.mjs` builds locally on your Windows mac
 | Keyboard shortcuts in app | ✅ | Limited (hardware keyboards) | In-app handler |
 | Biometric unlock | ❌ (use Windows Hello via ★ S02 research) | ✅ | `biometric` mobile-only |
 | File dialogs | ✅ | ✅ (system picker) | `dialog` |
-| Notifications | ✅ | ✅ (verify scheduling support) | `notification` |
-| Share into app ("Share to ARU") | ❌ | ✅ via Android intent | Custom Kotlin plugin (★ S05) |
+| Notifications | ✅ immediate; scheduled reminders only while the app (or its tray) runs | ✅ scheduled (AlarmManager, survives reboot) | `notification` |
+| Share into app ("Share to KAISEN") | ❌ | ✅ via Android intent | Custom Kotlin plugin (★ S05) |
 | Secure screen (block screenshots) | ❌ | ✅ via `FLAG_SECURE` | Custom Kotlin (★ S04) |
 | Window state (size, position) | ✅ | n/a | Desktop capability file |
 
@@ -1074,7 +1084,7 @@ Every feature section follows the same shape so the agent and you can scan quick
 
 ### 14.3 Events and cache invalidation
 
-After every commit Rust emits `aru://changed` with the set of touched entities. `src/lib/events.ts` maps entities to TanStack Query keys:
+After every commit Rust emits `kaisen://changed` with the set of touched entities. `src/lib/events.ts` maps entities to TanStack Query keys:
 
 | Entity touched | Query keys invalidated |
 |---|---|
@@ -1210,7 +1220,7 @@ The shared index lets search, tags, quest links, templates and Trash treat every
 - **Desktop**: left rail → vault name + file list (grouped Pinned / Recent / All) → editor → collapsible right sidebar.
 - **Mobile**: file list screen → editor screen; right sidebar becomes a bottom sheet ("Document settings").
 - File list row: kind icon, title, tag chips, quest chip, updated time. Sort: updated, created, title, manual (drag).
-- **New file** sheet: Note, Canvas, Codex, Board, plus "From template…".
+- **New file** sheet: Note, Codex, Board, plus "From template…". (Canvas is deferred, §19.)
 - **Right sidebar** (shared frame; each kind contributes tabs): *Properties* (tags, icon, colour, vault, created/updated), *Outline* (Notes ToC), *Comments* (Notes), *Links* (backlinks and outgoing, assigned quests), *History* (★ S15), *Export*.
 
 ### 17.5 Tags
@@ -1239,7 +1249,7 @@ Quests (assignment chip and header), Craft Room (save as template), Search (inde
 "A rich text editor with every formatting feature under the sun": headings, text colours, **highlights with custom colours**, **comments**, **backlinks**, quest tracking, **table of contents**, **word count**, **file uploads/embeds**, exports. Formatting controls appear **as a bottom bar or floating on selection** (user's choice), with document settings in a **collapsible right sidebar**.
 
 ### 18.2 Why TipTap
-ProseMirror-based, schema-driven, stores as plain JSON, extensible for every ARU-specific feature, works in Android WebView, has React bindings. Document JSON is stored in `note_content.doc`.
+ProseMirror-based, schema-driven, stores as plain JSON, extensible for every KAISEN-specific feature, works in Android WebView, has React bindings. Document JSON is stored in `note_content.doc`.
 
 ### 18.3 Formatting inventory ◆
 
@@ -1334,6 +1344,8 @@ Very large documents (> 100k words): warn and offer split; paste of huge HTML: t
 
 ## 19. Canvas (standard and Advanced)
 
+> ⏸ **DEFERRED (decision after spike S5, 2 Oct 2026).** Canvas is out of scope until you re-enable it. Until then: no canvas engine dependency, no `canvas_*` commands, and Canvas is not offered in the New file sheet, the Craft Room (`canvas`/`canvas_component` targets) or exports. The schema keeps the `canvas` file kind, the `canvas_content` table and the `canvas_content` sync entity **reserved**, so re-enabling Canvas needs no migration and no `payload_v` bump. A `canvas_content` record received by sync is stored as-is and not rendered. The design below is kept for when Canvas returns.
+
 ### 19.1 Purpose ◆ SPEC
 Infinite mind map: draw shapes, connect written nodes into flows, arrange images as a mood board. **Advanced canvas** adds **variables, triggers and logic**, a **Start node**, **components** for reuse, and a **sequence view** on the side.
 
@@ -1351,7 +1363,7 @@ tldraw is the primary candidate (infinite canvas, shapes, arrows with bindings, 
 ### 19.4 Standard features ◆
 Shapes (rectangle, ellipse, diamond, sticky/text node, arrow with labels, freehand), connectors that stay attached when nodes move, images (from picker, paste, drop) stored as attachments, grouping, alignment, colours from theme tokens, zoom to fit, minimap, undo/redo, export PNG/SVG.
 
-Images use an **asset store adapter**: when the engine asks to store an asset, Rust encrypts it into `att/<id>`, writes an `attachment` row, and returns an `aru-att://<id>` reference that the adapter resolves to a Blob URL on render.
+Images use an **asset store adapter**: when the engine asks to store an asset, Rust encrypts it into `att/<id>`, writes an `attachment` row, and returns an `kaisen-att://<id>` reference that the adapter resolves to a Blob URL on render.
 
 ### 19.5 Advanced mode ◆
 
@@ -1416,7 +1428,7 @@ codex_snippets(id, file_id, name, language, code, sort_key, content_enc, + commo
 ### 20.3 Editor (CodeMirror 6)
 - Line numbers, active-line highlight, bracket matching and auto-close, code folding, indent guides, soft wrap toggle, tab size, find/replace (regex), multiple cursors on desktop.
 - Languages loaded **on demand** (JavaScript/TypeScript, Python, Rust, SQL, HTML, CSS, JSON, Markdown, YAML, Shell, C/C++, Java, Kotlin, Go, PHP, C#). Language chosen by dropdown; guessed from snippet name extension.
-- Theme generated from ARU tokens (§29) so the editor matches every theme.
+- Theme generated from KAISEN tokens (§29) so the editor matches every theme.
 - Copy button, "Download as file" (Windows save dialog / Android share), duplicate snippet, reorder tabs (drag).
 
 ### 20.4 Search ◆
@@ -1908,40 +1920,45 @@ All colours, radii and shadows come from **CSS custom properties** on `:root` / 
 @import "tailwindcss";
 
 @theme inline {
-  --color-bg: var(--aru-bg);
-  --color-surface: var(--aru-surface);
-  --color-elevated: var(--aru-elevated);
-  --color-accent: var(--aru-accent);
-  --color-accent-fg: var(--aru-accent-fg);
-  --color-text: var(--aru-text);
-  --color-muted: var(--aru-text-muted);
-  --color-border: var(--aru-border);
-  --color-gold: var(--aru-gold);
-  --color-danger: var(--aru-danger);
-  --color-success: var(--aru-success);
-  --radius-card: var(--aru-radius);
+  --color-bg: var(--kaisen-bg);
+  --color-surface: var(--kaisen-surface);
+  --color-elevated: var(--kaisen-elevated);
+  --color-accent: var(--kaisen-accent);
+  --color-accent-fg: var(--kaisen-accent-fg);
+  --color-text: var(--kaisen-text);
+  --color-muted: var(--kaisen-text-muted);
+  --color-border: var(--kaisen-border);
+  --color-gold: var(--kaisen-gold);
+  --color-danger: var(--kaisen-danger);
+  --color-success: var(--kaisen-success);
+  --radius-card: var(--kaisen-radius);
 }
 
 :root, [data-theme="midnight"] {
-  --aru-bg: #0f1117;  --aru-surface: #171a23;  --aru-elevated: #1f2330;
-  --aru-accent: #6c8cff; --aru-accent-fg: #0b0d14;
-  --aru-text: #e6e8ef; --aru-text-muted: #9aa1b5; --aru-border: #2a2f40;
-  --aru-gold: #f5b83d; --aru-danger: #ef5b5b; --aru-success: #38c172; --aru-radius: 14px;
+  --kaisen-bg: #0f1117;  --kaisen-surface: #171a23;  --kaisen-elevated: #1f2330;
+  --kaisen-accent: #6c8cff; --kaisen-accent-fg: #0b0d14;
+  --kaisen-text: #e6e8ef; --kaisen-text-muted: #9aa1b5; --kaisen-border: #2a2f40;
+  --kaisen-gold: #f5b83d; --kaisen-danger: #ef5b5b; --kaisen-success: #38c172; --kaisen-radius: 14px;
 }
-[data-theme="dawn"] { --aru-bg:#fbf8f3; --aru-surface:#ffffff; --aru-elevated:#f3eee6; --aru-accent:#d9822b; --aru-accent-fg:#ffffff; --aru-text:#241f19; --aru-text-muted:#6f665a; --aru-border:#e4dccf; }
+[data-theme="dawn"] { --kaisen-bg:#fbf8f3; --kaisen-surface:#ffffff; --kaisen-elevated:#f3eee6; --kaisen-accent:#a0560f; --kaisen-accent-fg:#ffffff; --kaisen-text:#241f19; --kaisen-text-muted:#6f665a; --kaisen-border:#e4dccf;
+                      --kaisen-gold:#8c6000; --kaisen-danger:#c0392b; --kaisen-success:#1e7d4a; }
+/* M1: Dawn accent darkened from #d9822b (2.8:1 on bg) and Dawn gold/danger/success added so every
+   text pair meets 4.5:1 (§27.5). Until the theme setting exists (M15), the OS light/dark choice
+   picks Dawn or Midnight. Tailwind's default colour palette is disabled (`--color-*: initial`)
+   so raw colour classes cannot be used. */
 ```
 
 ### 29.3 Tokens
 
 | Token | Controls | User-editable |
 |---|---|---|
-| `--aru-bg`, `--aru-surface`, `--aru-elevated` | Window, cards/panels, modals/menus | Yes |
-| `--aru-accent`, `--aru-accent-fg` | Primary actions and focus rings, text on accent | Yes |
-| `--aru-text`, `--aru-text-muted` | Body and secondary text | Yes |
-| `--aru-border` | Dividers, inputs | Yes |
-| `--aru-gold` | Gold currency colour | Yes (default fixed gold) |
-| `--aru-danger`, `--aru-success` | Destructive and success states | Preset only (semantic) |
-| `--aru-radius` | Corner roundness (Sharp / Soft / Round) | Yes |
+| `--kaisen-bg`, `--kaisen-surface`, `--kaisen-elevated` | Window, cards/panels, modals/menus | Yes |
+| `--kaisen-accent`, `--kaisen-accent-fg` | Primary actions and focus rings, text on accent | Yes |
+| `--kaisen-text`, `--kaisen-text-muted` | Body and secondary text | Yes |
+| `--kaisen-border` | Dividers, inputs | Yes |
+| `--kaisen-gold` | Gold currency colour | Yes (default fixed gold) |
+| `--kaisen-danger`, `--kaisen-success` | Destructive and success states | Preset only (semantic) |
+| `--kaisen-radius` | Corner roundness (Sharp / Soft / Round) | Yes |
 | Font family, base size, line height, density | Typography and spacing scale | Yes |
 
 ### 29.4 Presets and custom themes
@@ -1954,7 +1971,7 @@ Ship at least: **Midnight** (default dark), **Dawn** (light), **Forest**, **Void
 | CodeMirror | Theme extension generated from tokens (background, gutters, selection, syntax palette derived per light/dark) |
 | Canvas | Default stroke/fill palette from tokens; engine theme set to light/dark |
 | Charts | Series colours from a token-derived palette |
-| Android system bars | Match `--aru-bg` (set meta `theme-color`; a native bridge may be needed for navigation-bar colour — verify in spike) |
+| Android system bars | Match `--kaisen-bg` (set meta `theme-color`; a native bridge may be needed for navigation-bar colour — verify in spike) |
 
 ### 29.6 Suggestions ★
 > ★ **S32 Contrast checker** — theme editor warns when text/background pairs fall below 4.5:1 and offers an auto-fix.
@@ -1981,10 +1998,10 @@ PDF note ⚠: Windows can print-to-PDF from the WebView. Android PDF generation 
 Manual backup is core because it is your last line of defence; scheduling is the suggestion.
 
 ```text
-file: aru-YYYYMMDD-HHMM.aruback   (single file)
+file: kaisen-YYYYMMDD-HHMM.kaisenback   (single file)
  ├─ header (plaintext JSON): format version, created_at, app version, schema version,
  │                           kdf params + salt + wrapped_dek_pass  (so the passphrase alone restores it)
- └─ body: sealed with HKDF("aru/backup/v1") :
+ └─ body: sealed with HKDF("kaisen/backup/v1") :
           SQLite online-backup snapshot (consistent) + encrypted attachment files
 ```
 
@@ -2015,7 +2032,9 @@ Not in your spec; useful for moving existing notes in. ★ **S28 Markdown/Obsidi
 Quest reminders and sync/update notices, local only (no push server).
 
 ### 32.2 Design
-- **Local notifications** via the Tauri notification plugin. Windows: toasts. Android: scheduled local notifications (⚠ verify scheduling APIs in the spike); request the `POST_NOTIFICATIONS` runtime permission on Android 13+. Avoid exact-alarm permission; a few minutes of imprecision is acceptable.
+- **Local notifications** via the Tauri notification plugin (spike S7).
+  - **Android:** scheduled by the plugin with `AlarmManager` (inexact without the exact-alarm permission, re-armed after reboot). Request the `POST_NOTIFICATIONS` runtime permission on Android 13+. Avoid exact-alarm permission; a few minutes of imprecision is acceptable.
+  - **Windows:** the plugin does **not** schedule on desktop (it shows immediately and ignores the schedule). Rust keeps the reminder set in memory and fires `show()` from a timer **while the app or its tray icon is running**. **Reminders do not fire while KAISEN is fully closed on Windows**; on next launch, missed reminders appear in the Gatehouse "missed" digest (§32.3).
 - A `reminders` pass runs after every sync and on every quest change: it **cancels and recreates** the scheduled set for active quests with a due time (offsets: at due, 15 min, 1 h, 1 day; per-quest and default in Settings), skipping quests completed or archived.
 - Quiet hours (default 22:00–07:00) delay non-urgent reminders.
 - 🔒 Notification text for quests in **protected vaults** (via assigned files) or marked private is generic ("A quest is due"), so nothing sensitive reaches the lock screen.
@@ -2140,7 +2159,7 @@ Settings/Theme: after the shell, before any polished UI.   Updates/Release: earl
 | S02 | Convenience unlock (biometrics on Android, OS credential store on Windows) | 4.5 | M | High | Phase 2 |
 | S03 | Panic lock shortcut | 4.5 | S | Medium | Prototype |
 | S04 | Android secure screen (block screenshots) for protected vaults | 11.1 | M | Medium | Later |
-| S05 | Android "Share to ARU" intent (capture from other apps) | 11.1 | M | High | Phase 2 |
+| S05 | Android "Share to KAISEN" intent (capture from other apps) | 11.1 | M | High | Phase 2 |
 | S06 | Conflict Inbox screen | 7.4 | S | Medium | Prototype (basic) |
 | S07 | Sync diagnostics screen | 27.3 | S | High | Prototype |
 | S08 | UI-only hot update (no reinstall) | 10.4 | M | Medium | After stable |
@@ -2191,7 +2210,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 |---|---|---|
 | **Prototype v0.1** | M0–M7 | Write notes on Windows and Android, offline, encrypted, 2FA-protected, synced, searchable |
 | **v0.2** | M8–M10 | Run the quest, gold, shop and Journey loop on both devices |
-| **v0.3** | M11–M14 | Board, Codex, Canvas, Craft Room, Gatehouse |
+| **v0.3** | M11, M12, M14 | Board, Codex, Craft Room, Gatehouse (M13 Canvas is deferred) |
 | **v1.0 (personal)** | M15–M17 | Themes, shortcuts, notifications, backups, OTA updates, hardening |
 
 ### M0 — Risk spikes (throwaway branches; results in `docs/SPIKES.md`)
@@ -2254,7 +2273,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 **Build**: snippets, CodeMirror with lazy languages, search integration, download/share.
 **Done when**: §20.9 passes.
 
-### M13 — Canvas
+### M13 — Canvas (⏸ deferred, see §19; skip in milestone order)
 **Build**: `CanvasEngine` wrapper, asset store adapter, autosave, Advanced mode shapes, variables panel, sequence view, component save/insert.
 **Done when**: §19.11 passes.
 
@@ -2271,7 +2290,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 **Done when**: §30.2 acceptance passes; a restore on a clean emulator reproduces the data.
 
 ### M17 — OTA, release pipeline, hardening
-**Build**: `UpdateService` (Windows updater, Android mechanism from S4), `latest.json` manifest tooling, CI workflow (Appendix E) or local release script, keystore and signing-key backups, security checklist (§12) executed.
+**Build**: `UpdateService` (Windows updater; Android update banner, installs via Obtainium per §10.4), `latest.json` manifest tooling, CI workflow (Appendix E) or local release script, keystore and signing-key backups, security checklist (§12) executed.
 **Done when**: §10.6 acceptance passes with a real N→N+1 update on both devices; every item in §12 is ticked with evidence.
 
 ---
@@ -2302,7 +2321,7 @@ Effort: S ≈ under 1 day, M ≈ 1–3 days, L ≈ a week or more for a solo dev
 ### A.1 `src-tauri/migrations/0001_core.sql`
 
 ```sql
--- ARU local schema v1 (SQLCipher). Forward-only.
+-- KAISEN local schema v1 (SQLCipher). Forward-only.
 
 -- ───────── local-only (never synced) ─────────
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -2341,7 +2360,7 @@ CREATE TABLE view_state (
   last_opened INTEGER, state_json TEXT,       -- scroll, cursor, canvas viewport (per device)
   PRIMARY KEY (entity, record_id)
 );
-CREATE TABLE secure_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);   -- sealed with HKDF "aru/kv/v1"
+CREATE TABLE secure_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);   -- sealed with HKDF "kaisen/kv/v1"
 
 -- ───────── structure (synced) ─────────
 CREATE TABLE vaults (
@@ -2585,7 +2604,7 @@ ALTER TABLE shop_items ADD COLUMN available_until INTEGER;
 | `setting` | `settings` | LWW row |
 | `device` | `devices` | LWW row |
 
-**Payload** = the row serialised as a JSON object with **sorted keys**, containing every column of the table (including `hlc`, `created_at`, `updated_at`, `deleted_at`). It is sealed with the `aru/sync/v1` sub-key and the AAD from §5.4, then base64-encoded. Each Rust entity module implements one trait so the sync code is generic:
+**Payload** = the row serialised as a JSON object with **sorted keys**, containing every column of the table (including `hlc`, `created_at`, `updated_at`, `deleted_at`). It is sealed with the `kaisen/sync/v1` sub-key and the AAD from §5.4, then base64-encoded. Each Rust entity module implements one trait so the sync code is generic:
 
 ```rust
 pub trait Synced {
@@ -2783,12 +2802,12 @@ const { data, error } = await supabase
 
 ```toml
 [package]
-name = "aru"
+name = "kaisen"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "aru_lib"
+name = "kaisen_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -2844,7 +2863,7 @@ proptest = "*"
 
 ```json
 {
-  "name": "aru",
+  "name": "kaisen",
   "private": true,
   "type": "module",
   "scripts": {
@@ -2865,7 +2884,7 @@ proptest = "*"
     "@tauri-apps/plugin-updater": "*", "@tauri-apps/plugin-process": "*",
     "@supabase/supabase-js": "*", "@tanstack/react-query": "*", "zustand": "*",
     "@tiptap/react": "*", "@tiptap/pm": "*", "@tiptap/starter-kit": "*",
-    "tldraw": "*", "@dnd-kit/core": "*", "@dnd-kit/sortable": "*", "@dnd-kit/utilities": "*",
+    "@dnd-kit/core": "*", "@dnd-kit/sortable": "*", "@dnd-kit/utilities": "*",
     "@codemirror/state": "*", "@codemirror/view": "*", "@codemirror/language": "*", "@codemirror/search": "*",
     "clsx": "*", "tailwind-merge": "*", "fractional-indexing": "*"
   },
@@ -2876,19 +2895,19 @@ proptest = "*"
 }
 ```
 
-(Individual TipTap, CodeMirror language and tldraw packages are added by their milestones. Replace every `*` with an exact pinned version at M0, ★ S10.)
+(Individual TipTap and CodeMirror language packages are added by their milestones; no canvas engine while Canvas is deferred. Replace every `*` with an exact pinned version at M0, ★ S10.)
 
 ### D.3 `src-tauri/tauri.conf.json` (excerpt)
 
 ```json
 {
-  "productName": "ARU",
+  "productName": "KAISEN",
   "version": "0.1.0",
-  "identifier": "dev.alexreid.aru",
+  "identifier": "dev.alexreid.kaisen",
   "build": { "beforeDevCommand": "npm run dev", "devUrl": "http://localhost:1420",
              "beforeBuildCommand": "npm run build", "frontendDist": "../dist" },
   "app": {
-    "windows": [{ "label": "main", "title": "ARU", "width": 1280, "height": 800, "minWidth": 960, "minHeight": 600 }],
+    "windows": [{ "label": "main", "title": "KAISEN", "width": 1280, "height": 800, "minWidth": 960, "minHeight": 600 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: asset: http://asset.localhost; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' ipc: http://ipc.localhost https://<PROJECT_REF>.supabase.co wss://<PROJECT_REF>.supabase.co; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     }
@@ -2909,7 +2928,9 @@ proptest = "*"
 }
 ```
 
-> `style-src 'unsafe-inline'` is required by ProseMirror/tldraw dynamic styles. Revisit with nonces if the engines allow it. Never add `unsafe-eval` or remote script hosts.
+> M1: `connect-src` has no Supabase hosts yet. M3 adds `https://<PROJECT_REF>.supabase.co` and `wss://<PROJECT_REF>.supabase.co` when the client first talks to Supabase.
+>
+> `style-src 'unsafe-inline'` is required by ProseMirror dynamic styles. Revisit with nonces if the engines allow it. Never add `unsafe-eval` or remote script hosts.
 
 ### D.4 Capabilities (platform split)
 
@@ -2956,7 +2977,7 @@ proptest = "*"
 }
 ```
 
-(Add `biometric:default` here for ★ S02. Scope `opener:allow-open-url` to `https`, `http` and `mailto` per the plugin's scope syntax.)
+(M1: each file grants only permissions of plugins that are actually installed. A plugin's permissions are added by the milestone that installs it, so `default.json` starts with `core:default` and `desktop.json`/`mobile.json` start empty. Add `biometric:default` here for ★ S02. Scope `opener:allow-open-url` to `https`, `http` and `mailto` per the plugin's scope syntax.)
 
 ### D.5 Environment and secrets
 
@@ -2973,6 +2994,7 @@ CI/GitHub secrets (never in the repo, never in the app bundle):
 TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
 SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY            # used only by the publish step
+RELEASES_REPO_TOKEN                                # fine-grained token: contents:write on kaisen-releases only
 ```
 
 ---
@@ -3048,10 +3070,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-      - run: node scripts/publish-release.mjs     # uploads artifacts, computes sha256, writes latest.json LAST
+      - run: node scripts/publish-release.mjs     # Windows → Supabase, APK → GitHub Release on kaisen-releases, sha256, latest.json LAST
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RELEASES_REPO_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
           VERSION: ${{ needs.gate.outputs.version }}
 ```
 

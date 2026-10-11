@@ -1,0 +1,6 @@
+dist
+src-tauri
+src/types/generated
+docs
+package-lock.json
+*.md

@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Windows-only permissions. Desktop-only plugins (updater, process, global-shortcut) are granted here and never on Android (CLAUDE.md rule 9).",
+  "windows": ["main"],
+  "platforms": ["windows", "linux", "macOS"],
+  "permissions": []
+}
