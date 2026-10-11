@@ -116,18 +116,31 @@ async function viaWebDriver(app) {
 }
 
 async function viaCdp(port) {
-  let page;
-  for (let i = 0; i < 60 && !page; i++) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // The WebView exists before the app page has loaded; evaluating too early fails with
+  // "Execution context was destroyed". Wait for the app URL, then retry if a load is in flight.
+  const isAppUrl = (url) => /^(https?:\/\/tauri\.localhost|tauri:\/\/localhost)/.test(url ?? "");
+  let lastError = "no DevTools page target";
+  for (let attempt = 0; attempt < 60; attempt++) {
+    let page;
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-      page = list.find((t) => t.type === "page" && t.webSocketDebuggerUrl);
+      page = list.find((t) => t.type === "page" && t.webSocketDebuggerUrl && isAppUrl(t.url));
     } catch {
-      /* not up yet */
+      /* DevTools not up yet */
     }
-    if (!page) await new Promise((r) => setTimeout(r, 1000));
+    if (page) {
+      const result = await evaluate(page.webSocketDebuggerUrl);
+      if (!result?.error?.includes("Execution context was destroyed")) return result;
+      lastError = result.error;
+    }
+    await sleep(1000);
   }
-  if (!page) throw new Error("no DevTools page target");
-  const ws = new WebSocket(page.webSocketDebuggerUrl);
+  return { error: lastError };
+}
+
+async function evaluate(wsUrl) {
+  const ws = new WebSocket(wsUrl);
   await new Promise((res, rej) => {
     ws.onopen = res;
     ws.onerror = rej;
