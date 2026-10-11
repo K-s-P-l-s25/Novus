@@ -435,6 +435,20 @@ export async function loginWithTotp(email: string, password: string, code: strin
 
 > 🔒 **SECURITY** — Enrol the TOTP secret in **two** places: Proton Authenticator with its encrypted backup/sync switched on, **and** a printed or offline copy of the secret in a safe. Supabase has no built-in TOTP recovery codes; losing the authenticator with no backup locks you out of the cloud (local data would remain). You can enrol a second TOTP factor as a backup (`mfa.enroll` can be called again).
 
+### 4.4a As built in M3
+
+| Item | Decision |
+|---|---|
+| Local-only builds | A build without `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` runs **on this device only**. First run skips sign-in and TOTP and goes straight to *create passphrase → recovery key*, and sync stays off. This keeps the app usable offline-first and lets CI test the real shell without cloud credentials |
+| Route guard | Rooms require unlocked keys. No local key file sends you to `/setup`; locked sends you to `/unlock`, and after unlock you return to the room you came from. `/setup` is only reachable before keys exist; `/unlock` and `/recover` only while locked |
+| First-device vs new-device | After `aal2` the wizard fetches `user_keys`. No row means *create passphrase*, then `keys_bootstrap`, then upload the row. A row means *unlock with the existing passphrase* (or the recovery key followed by a new passphrase), and the row is saved locally |
+| Forgotten passphrase | New command `keys_set_passphrase(new) → user_keys_row`, allowed only while unlocked. It re-wraps the in-memory DEK, so `/recover` can unlock with the recovery key and then set a new passphrase without the old one |
+| `user_keys` upload offline | If uploading the row fails, it is kept (sealed) in secure KV under `kaisen.user_keys.pending` and retried after the next unlock |
+| Session storage | §4.4 adapter. In memory before unlock and while locked (so a token refresh is not lost); flushed into `secure_kv` after unlock. Never `localStorage`. Until M4, sealed values live in `app_data_dir/secure_kv.json` (AAD binds each value to its key) |
+| Expired session | `/auth` signs in again (password + TOTP) while the app stays unlocked; local data is unaffected |
+| Auto-lock | Hard-coded §4.5 defaults until settings exist (M15): 15 min without input on desktop, 5 min in the background on Android (also checked on resume, because Android may freeze timers). Plus **Lock now** (Ctrl+L, rail button, More, Profile) |
+| Unlock is offline | Unlocking calls only Rust; no network request is made before the rooms appear (tested) |
+
 ### 4.5 Local app lock
 
 - Cold start always requires the **master passphrase** (Phase 1).
@@ -2791,7 +2805,7 @@ const { data, error } = await supabase
 | Group | Commands |
 |---|---|
 | **App** | `app_info() → {version, schema_version, payload_v, platform, device_id}` · `diagnostics_export() → path` |
-| **Keys** (pre-unlock allowed) | `keys_status() → {has_keys, unlocked}` · `keys_bootstrap(passphrase) → {user_keys_row, recovery_key}` · `keys_unlock(passphrase, user_keys_row)` · `keys_unlock_recovery(recovery_key, user_keys_row)` · `keys_lock()` · `keys_change_passphrase(old, new) → user_keys_row` · `keys_regenerate_recovery(passphrase) → {user_keys_row, recovery_key}` |
+| **Keys** (pre-unlock allowed) | `keys_status() → {has_keys, unlocked}` · `keys_bootstrap(passphrase) → {user_keys_row, recovery_key}` · `keys_unlock(passphrase, user_keys_row)` · `keys_unlock_recovery(recovery_key, user_keys_row)` · `keys_lock()` · `keys_change_passphrase(old, new) → user_keys_row` · `keys_regenerate_recovery(passphrase) → {user_keys_row, recovery_key}` · `keys_set_passphrase(new) → user_keys_row` (unlocked only, M3) · `keys_passphrase_strength(passphrase) → {score, bits, acceptable, hints}` (M2) |
 | **Secure KV** | `secure_kv_get(key)` · `secure_kv_set(key, value)` · `secure_kv_delete(key)` |
 | **Vaults** | `vault_list` · `vault_create` · `vault_update` · `vault_set_password` · `vault_unlock` · `vault_lock` · `vault_lock_all` · `vault_trash` · `vault_restore` · `vault_purge` |
 | **Files** | `file_create` · `file_list` · `file_get_meta` · `file_update_meta` · `file_move` · `file_duplicate` · `file_trash` · `file_restore` · `file_purge` · `file_search_titles(q)` · `recent_files` · `view_state_get/set` |

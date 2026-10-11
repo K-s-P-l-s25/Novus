@@ -70,7 +70,7 @@ The first build compiles a lot of Rust (a few minutes). From M4 on, the first bu
 
 ## Environment (`.env`)
 
-Copy `.env.example` to `.env` (git-ignored). Both values are public by design, because Row Level Security protects the data (SPEC §8.2). They are used from M3. Without them the app runs fully offline and sync stays off. Never put the service-role key, signing keys or keystores in `.env` or the repo.
+Copy `.env.example` to `.env` (git-ignored). Both values are public by design, because Row Level Security protects the data (SPEC §8.2). Creating the Supabase project is described in [SUPABASE_SETUP.md](SUPABASE_SETUP.md). Without these values the build is **local-only**: first run creates a passphrase on this device, and sync stays off. Never put the service-role key, signing keys or keystores in `.env` or the repo.
 
 ## Everyday commands
 
