@@ -29,7 +29,7 @@ pub(crate) fn info(version: String) -> AppInfo {
 }
 
 #[tauri::command]
-pub fn app_info(app: tauri::AppHandle) -> AppResult<AppInfo> {
+pub fn app_info<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> AppResult<AppInfo> {
     Ok(info(app.package_info().version.to_string()))
 }
 

@@ -22,6 +22,27 @@ tracing-appender = "=0.2.5"
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["fmt", "std", "env-filter"] }
 ts-rs = "=12.0.1"
 uuid = { version = "=1.28.0", features = ["v4", "v5", "v7"] }
+argon2 = { version = "=0.6.0", default-features = false, features = ["alloc", "zeroize"] }
+chacha20poly1305 = { version = "=0.11.0", default-features = false, features = ["alloc"] }
+hkdf = "=0.13.0"
+sha2 = "=0.11.0"
+rand = "=0.10.3"
+zeroize = { version = "=1.9.1", features = ["derive"] }
+subtle = "=2.6.1"
+base64 = "=0.23.1"
+
+[dev-dependencies]
+tauri = { version = "=2.12.3", features = ["test"] }
+
+# Argon2id at 64 MiB is unusably slow unoptimised; keep crypto fast in dev and test builds.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.dev.package.chacha20]
+opt-level = 3
+[profile.dev.package.poly1305]
+opt-level = 3
 
 [profile.release]
 codegen-units = 1

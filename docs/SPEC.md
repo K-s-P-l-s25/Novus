@@ -489,7 +489,7 @@ Vault key (random 256-bit per protected vault)
 | AEAD | XChaCha20-Poly1305 (24-byte random nonce) | Output format `nonce(24) ‖ ciphertext+tag`. |
 | Sub-keys | HKDF-SHA256 with the labels above | Compromise of one purpose does not expose another. |
 | SQLCipher key | Raw 256-bit key via `PRAGMA key = "x'<hex>'"` | Skips SQLCipher's internal PBKDF2 because the key is already uniformly random. |
-| Randomness | `OsRng` | Never `thread_rng` for keys or nonces. |
+| Randomness | OS CSPRNG (`rand::rngs::SysRng` in rand 0.10, formerly `OsRng`) | Never `thread_rng` or any userspace PRNG for keys or nonces. |
 | Memory | `zeroize` on all key material; `Zeroizing<[u8; 32]>` wrappers | DEK lives only in Rust memory while unlocked. |
 
 ### 5.4 Binding ciphertext to its record (anti-swap, anti-replay)
@@ -552,6 +552,22 @@ pub fn subkey(dek: &[u8; 32], label: &str) -> Zeroizing<[u8; 32]> {
     out
 }
 ```
+
+### 5.5a As built in M2 (decisions that refine §5.2–§5.5)
+
+| Item | Decision |
+|---|---|
+| Recovery KEK | `KEK_r = HKDF-SHA256(recovery_key, "kaisen/recovery/v1")`. The recovery key is 256 uniformly random bits, so no Argon2 is needed |
+| Recovery key format | 32 random bytes + 2-byte checksum (`SHA-256("kaisen/recovery-checksum/v1" ‖ key)[0..2]`), Crockford base32, 11 groups of 5 (`XXXXX-XXXXX-…`). Input is case-insensitive, ignores spaces/dashes, reads O as 0 and I/L as 1. Typos fail the checksum before any crypto runs |
+| `key_check` | `seal(HKDF(DEK, "kaisen/check/v1"), aad, "kaisen-key-check-v1")`, compared in constant time after unwrapping |
+| Wrap AADs | `kaisen\|user_keys\|dek_pass\|v1`, `kaisen\|user_keys\|dek_recovery\|v1`, `kaisen\|user_keys\|key_check\|v1`, so a wrapped DEK cannot be moved between slots |
+| Salt | 16 random bytes, new on every passphrase change |
+| KDF parameter bounds | `m_kib` 8,192–1,048,576, `t` 1–10, `p` 1–4. Rows outside the range are refused, because the parameters come from the server |
+| Local key file | `app_data_dir/user_keys.json` holds the same `user_keys` row as Supabase (ciphertext only), written atomically. It lets the app unlock offline (§4.3 *Daily use*) and must live outside the database, whose key derives from the DEK. `keys_unlock(…, user_keys_row)` with a row from the server saves it locally (new-device flow) |
+| `keys_bootstrap` | Refused with `Conflict` if a key file already exists (it would orphan the existing DEK). The passphrase must pass the strength estimator |
+| Strength estimator (★ S12) | Built in Rust (no zxcvbn on the allow-list). It estimates guessing entropy from character classes, credits word passphrases at ~12.9 bits per word, and penalises repeats, sequences and very common passwords. Accept at ≥ 12 characters **and** ≥ 50 estimated bits. It returns a score (0–4) and fixed hint codes, never the input |
+| Lock | `keys_lock` drops the `Zeroizing` DEK. Every key-dependent operation then returns `Locked`. Auto-lock timers come with the unlock screen in M3 |
+| Passphrase change (M3 note) | M2 persists the re-wrapped row locally at once. In M3 the Supabase update must succeed before the local file is replaced (§26.4), which may split the command into prepare and commit steps |
 
 ### 5.6 What Supabase can and cannot see
 
