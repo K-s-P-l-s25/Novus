@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions common to all platforms. Plugins are added here by the milestone that first uses them (SPEC Appendix D.4).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
