@@ -1,0 +1,112 @@
+/* KAISEN theme tokens (SPEC §29). Components use Tailwind utilities mapped to these
+   variables (bg-bg, text-text, border-border, ...) and never hard-code colours.
+   Tailwind's default colour palette is switched off so a raw colour class cannot slip in. */
+@import "tailwindcss";
+
+@theme {
+  --color-*: initial;
+}
+
+@theme inline {
+  --color-bg: var(--kaisen-bg);
+  --color-surface: var(--kaisen-surface);
+  --color-elevated: var(--kaisen-elevated);
+  --color-accent: var(--kaisen-accent);
+  --color-accent-fg: var(--kaisen-accent-fg);
+  --color-text: var(--kaisen-text);
+  --color-muted: var(--kaisen-text-muted);
+  --color-border: var(--kaisen-border);
+  --color-gold: var(--kaisen-gold);
+  --color-danger: var(--kaisen-danger);
+  --color-success: var(--kaisen-success);
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --radius-card: var(--kaisen-radius);
+}
+
+/* Midnight: default dark preset. */
+:root,
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --kaisen-bg: #0f1117;
+  --kaisen-surface: #171a23;
+  --kaisen-elevated: #1f2330;
+  --kaisen-accent: #6c8cff;
+  --kaisen-accent-fg: #0b0d14;
+  --kaisen-text: #e6e8ef;
+  --kaisen-text-muted: #9aa1b5;
+  --kaisen-border: #2a2f40;
+  --kaisen-gold: #f5b83d;
+  --kaisen-danger: #ef5b5b;
+  --kaisen-success: #38c172;
+  --kaisen-radius: 14px;
+}
+
+/* Dawn: default light preset. */
+[data-theme="dawn"] {
+  color-scheme: light;
+  --kaisen-bg: #fbf8f3;
+  --kaisen-surface: #ffffff;
+  --kaisen-elevated: #f3eee6;
+  --kaisen-accent: #a0560f;
+  --kaisen-accent-fg: #ffffff;
+  --kaisen-text: #241f19;
+  --kaisen-text-muted: #6f665a;
+  --kaisen-border: #e4dccf;
+  --kaisen-gold: #8c6000;
+  --kaisen-danger: #c0392b;
+  --kaisen-success: #1e7d4a;
+}
+
+/* "System" until the theme setting exists (M15): follow the OS light/dark choice. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --kaisen-bg: #fbf8f3;
+    --kaisen-surface: #ffffff;
+    --kaisen-elevated: #f3eee6;
+    --kaisen-accent: #a0560f;
+    --kaisen-accent-fg: #ffffff;
+    --kaisen-text: #241f19;
+    --kaisen-text-muted: #6f665a;
+    --kaisen-border: #e4dccf;
+    --kaisen-gold: #8c6000;
+    --kaisen-danger: #c0392b;
+    --kaisen-success: #1e7d4a;
+  }
+}
+
+@layer base {
+  html {
+    /* rem-based sizing follows the OS font scale (SPEC §27.5). */
+    font-size: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family:
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
