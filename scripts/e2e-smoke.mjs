@@ -31,7 +31,42 @@ const pageTest = async () => {
     }
     return false;
   };
-  for (let i = 0; i < 100 && !document.querySelector('nav[aria-label="Rooms"]'); i++)
+  // React-controlled inputs need the native setter plus an input event.
+  const fill = (id, value) => {
+    const el = document.getElementById(id);
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    setter.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const button = (text) =>
+    [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === text);
+  const PASS = "orbit lantern pebble justice marrow e2e";
+
+  // First run (local-only build): create keys and confirm the recovery key. Re-runs: unlock.
+  await waitFor(
+    () => ["Create your master passphrase", "Unlock", "Gatehouse"].includes(h1()),
+    15000,
+  );
+  const entry = h1();
+  if (entry === "Create your master passphrase") {
+    fill("new-passphrase", PASS);
+    fill("confirm-passphrase", PASS);
+    await waitFor(() => button("Create passphrase") && !button("Create passphrase").disabled);
+    button("Create passphrase").click();
+    await waitFor(() => document.querySelector('[data-testid="recovery-key"]'), 30000);
+    const groups = [...document.querySelectorAll('[data-testid="recovery-key"] li')].map(
+      (li) => li.textContent,
+    );
+    document.querySelector('input[type="checkbox"]').click();
+    fill("recovery-confirm", groups.at(-1));
+    await waitFor(() => !button("Continue").disabled);
+    button("Continue").click();
+  } else if (entry === "Unlock") {
+    fill("unlock-passphrase", PASS);
+    await waitFor(() => !button("Unlock").disabled);
+    button("Unlock").click();
+  }
+  for (let i = 0; i < 300 && !document.querySelector('nav[aria-label="Rooms"]'); i++)
     await sleep(100);
   const navLinks = () => [...document.querySelectorAll('nav[aria-label="Rooms"] a')];
   const goto = async (href) => {
@@ -83,6 +118,7 @@ const pageTest = async () => {
 
   return {
     url: location.href,
+    entry,
     layout,
     rooms,
     about,
