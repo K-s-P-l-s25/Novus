@@ -108,10 +108,10 @@ Debug builds also log to stderr and honour `RUST_LOG`.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every push except docs-only changes:
+`.github/workflows/ci.yml`:
 
-- **checks**: typecheck, lint, format, Vitest, rustfmt, clippy, cargo test, and the generated-types check.
-- **windows**: release build plus the smoke test in WebView2.
-- **android**: debug APK plus the smoke test on an Android 14 emulator.
+- **checks** (every push except docs-only): typecheck, lint, format, Vitest, rustfmt, clippy, cargo test, and the generated-types check.
+- **windows** (pull requests and manual runs only): builds the NSIS installer and uploads it as the `kaisen-windows-installer` artifact (kept 14 days), then runs the smoke test in WebView2.
+- **android** (pull requests and manual runs only): debug APK plus the smoke test on an Android 14 emulator.
 
-The Windows and Android jobs use roughly 15–25 runner minutes each per push. Windows minutes count double on private repos.
+The Windows and Android jobs use roughly 15–25 runner minutes each. Windows minutes count double on private repos. A manual run (*Actions → ci → Run workflow*) is available once `ci.yml` is on the default branch.
